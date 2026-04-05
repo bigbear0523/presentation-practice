@@ -1447,6 +1447,17 @@ body {
   color: var(--accent);
 }
 
+.rec-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  background: var(--success-bg);
+  color: var(--success);
+  border-radius: 8px;
+  cursor: help;
+}
+
 /* --- 差分比較 強化 --- */
 .diff-stats {
   display: flex;

@@ -173,6 +173,11 @@ export default function Dashboard({
                   <span>{r.reachedIndex + 1}/{r.totalSentences}文（{Math.round(r.reachRate * 100)}%）</span>
                   {r.scriptVersionAt && <span className="version-badge">{fmtDate(r.scriptVersionAt)}版</span>}
                   {!r.scriptVersionAt && r.scriptId && <span className="text-muted" style={{ fontSize: '0.7rem' }}>旧版</span>}
+                  {r.recordedIndices && r.recordedIndices.length > 0 && (
+                    <span className="rec-badge" title={`録音済み: ${r.recordedIndices.map((x) => x + 1).join(', ')}文目`}>
+                      録音{r.recordedIndices.length}文
+                    </span>
+                  )}
                 </div>
               </div>
             ))}

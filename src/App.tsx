@@ -17,6 +17,7 @@ import { parseScript, parseChapters, SAMPLE_SCRIPT } from './utils/scriptParser'
 import { getJapaneseVoice, cancelSpeech } from './utils/speech';
 import { incrementDaily } from './utils/dailyLog';
 import { downloadBackup, restoreBackup } from './utils/backup';
+import { listRecordingKeys } from './utils/recordingDb';
 import {
   saveScript, loadScript,
   saveCheckedItems, loadCheckedItems,
@@ -227,11 +228,10 @@ function AppInner() {
   const currentChapterName = selectedChapter >= 0 && selectedChapter < chapters.length
     ? chapters[selectedChapter].title : '全体';
 
-  /** タイマー結果を保存する共通関数 */
+  /** タイマー結果を保存する共通関数（録音情報も非同期で取得して付与） */
   const saveTimerResult = useCallback((info: {
     elapsed: number; limitSec: number; completed: boolean; reachedIndex: number;
   }) => {
-    // 現在の台本の版情報を取得
     const scripts = loadScripts();
     const activeScript = scripts.find((s) => s.id === activeScriptId);
     const result: TimerResult = {
@@ -247,8 +247,21 @@ function AppInner() {
       scriptId: activeScriptId,
       scriptVersionAt: activeScript?.updatedAt,
     };
-    setTimerResults(appendTimerResult(result));
+    // まず結果を保存（録音情報なし）
+    const saved = appendTimerResult(result);
+    setTimerResults(saved);
     incrementDaily('timerCount');
+    // 非同期で録音情報を追加（失敗しても結果は保存済み）
+    listRecordingKeys(activeScriptId).then((indices) => {
+      if (indices.length === 0) return;
+      // 直近保存した結果に録音情報を付与して上書き
+      const updated = [...saved];
+      if (updated[0] && updated[0].date === result.date) {
+        updated[0] = { ...updated[0], recordedIndices: indices };
+        setTimerResults(updated);
+        try { localStorage.setItem('pres-practice-timer-results', JSON.stringify(updated.slice(0, 50))); } catch { /* ignore */ }
+      }
+    }).catch(() => { /* ignore */ });
   }, [sentences.length, currentScriptTitle, currentChapterName, activeScriptId]);
 
   // プロンプタータイマー終了時に結果保存

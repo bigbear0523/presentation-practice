@@ -79,6 +79,8 @@ export interface TimerResult {
   scriptId?: string;
   /** 台本版の保存日時（updatedAt）。版の識別に使う */
   scriptVersionAt?: number;
+  /** 本番時点で録音済みだった文のインデックス一覧 */
+  recordedIndices?: number[];
 }
 
 // --- 低レベルヘルパー ---
