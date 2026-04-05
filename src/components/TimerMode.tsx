@@ -4,6 +4,8 @@ interface Props {
   totalSentences: number;
   currentIndex: number;
   onClose: () => void;
+  /** 終了時に結果を通知する */
+  onFinish?: (info: { elapsed: number; limitSec: number; completed: boolean; reachedIndex: number }) => void;
 }
 
 /**
@@ -12,7 +14,7 @@ interface Props {
  * - 予定ペースとの差
  * - 終了時に簡易結果表示
  */
-export default function TimerMode({ totalSentences, currentIndex, onClose }: Props) {
+export default function TimerMode({ totalSentences, currentIndex, onClose, onFinish }: Props) {
   const [limitMinutes, setLimitMinutes] = useState(5);
   const [isRunning, setIsRunning] = useState(false);
   const [elapsed, setElapsed] = useState(0); // 秒
@@ -59,6 +61,21 @@ export default function TimerMode({ totalSentences, currentIndex, onClose }: Pro
     setIsRunning(false);
     setFinished(true);
   };
+
+  // finished が true になったときに onFinish を呼ぶ
+  const finishedRef = useRef(false);
+  useEffect(() => {
+    if (finished && !finishedRef.current) {
+      finishedRef.current = true;
+      onFinish?.({
+        elapsed,
+        limitSec,
+        completed: elapsed >= limitSec,
+        reachedIndex: currentIndex,
+      });
+    }
+    if (!finished) finishedRef.current = false;
+  }, [finished, elapsed, limitSec, currentIndex, onFinish]);
 
   const formatTime = (sec: number) => {
     const m = Math.floor(sec / 60);

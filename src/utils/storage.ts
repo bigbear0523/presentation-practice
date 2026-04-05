@@ -26,6 +26,7 @@ const KEYS = {
   activeScriptId: `${PREFIX}-active-script-id`,
   // 学習ダッシュボード
   dashboardStats: `${PREFIX}-dashboard-stats`,
+  timerResults: `${PREFIX}-timer-results`,
 } as const;
 
 // --- 型定義 ---
@@ -52,6 +53,19 @@ export interface DashboardStats {
   totalPracticeCount: number;
   totalSpeakCount: number;
   totalRecordCount: number;
+}
+
+/** 本番タイマー結果 */
+export interface TimerResult {
+  date: number;         // Date.now()
+  limitSec: number;     // 制限時間（秒）
+  elapsed: number;      // 経過時間（秒）
+  completed: boolean;   // 制限時間まで到達したか
+  reachedIndex: number; // 到達した文番号
+  totalSentences: number;
+  reachRate: number;    // 到達率（0〜1）
+  scriptTitle: string;
+  chapterName: string;
 }
 
 // --- 低レベルヘルパー ---
@@ -215,4 +229,19 @@ export function loadDashboardStats(): DashboardStats {
       totalRecordCount: p?.totalRecordCount ?? 0,
     };
   } catch { return { totalPracticeCount: 0, totalSpeakCount: 0, totalRecordCount: 0 }; }
+}
+
+// --- 本番タイマー結果 ---
+export function saveTimerResults(results: TimerResult[]): void { safeSet(KEYS.timerResults, JSON.stringify(results)); }
+export function loadTimerResults(): TimerResult[] {
+  const raw = safeGet(KEYS.timerResults);
+  if (!raw) return [];
+  try { const p = JSON.parse(raw); return Array.isArray(p) ? p : []; } catch { return []; }
+}
+/** 結果を追加（最大50件保持） */
+export function appendTimerResult(result: TimerResult): TimerResult[] {
+  const prev = loadTimerResults();
+  const next = [result, ...prev].slice(0, 50);
+  saveTimerResults(next);
+  return next;
 }

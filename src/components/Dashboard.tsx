@@ -1,5 +1,5 @@
 import React from 'react';
-import { type SentenceStatsMap, type SentenceStats, isAutoWeak, type DashboardStats } from '../utils/storage';
+import { type SentenceStatsMap, type SentenceStats, isAutoWeak, type DashboardStats, type TimerResult } from '../utils/storage';
 import type { Chapter } from '../utils/scriptParser';
 
 interface Props {
@@ -10,6 +10,7 @@ interface Props {
   autoWeakStats: SentenceStatsMap;
   dashboardStats: DashboardStats;
   recordingCount: number;
+  timerResults: TimerResult[];
   onClose: () => void;
 }
 
@@ -22,9 +23,9 @@ export default function Dashboard({
   autoWeakStats,
   dashboardStats,
   recordingCount,
+  timerResults,
   onClose,
 }: Props) {
-  // 苦手ランキング: スコア順にソート
   const weakRanking = Object.entries(autoWeakStats)
     .map(([key, stats]) => ({ index: parseInt(key, 10), stats, score: calcScore(stats) }))
     .filter((x) => x.score > 0)
@@ -32,6 +33,13 @@ export default function Dashboard({
     .slice(0, 10);
 
   const autoWeakCount = Object.values(autoWeakStats).filter((s) => isAutoWeak(s)).length;
+
+  // 本番履歴の集計
+  const recentResults = timerResults.slice(0, 10);
+  const avgReachRate = timerResults.length > 0
+    ? timerResults.reduce((sum, r) => sum + r.reachRate, 0) / timerResults.length : 0;
+  const completedCount = timerResults.filter((r) => r.completed).length;
+  const completionRate = timerResults.length > 0 ? completedCount / timerResults.length : 0;
 
   return (
     <div className="dashboard">
@@ -49,8 +57,41 @@ export default function Dashboard({
         <StatCard label="録音数" value={recordingCount} />
         <StatCard label="累計再生" value={dashboardStats.totalSpeakCount} />
         <StatCard label="累計録音" value={dashboardStats.totalRecordCount} />
-        <StatCard label="累計練習" value={dashboardStats.totalPracticeCount} />
+        <StatCard label="本番回数" value={timerResults.length} />
       </div>
+
+      {/* 本番履歴 */}
+      {timerResults.length > 0 && (
+        <div className="dashboard-section">
+          <h4 className="dashboard-section-title">本番履歴</h4>
+
+          {/* 集計 */}
+          <div className="timer-summary">
+            <span>平均到達率: <strong>{Math.round(avgReachRate * 100)}%</strong></span>
+            <span>完走率: <strong>{Math.round(completionRate * 100)}%</strong>（{completedCount}/{timerResults.length}回）</span>
+          </div>
+
+          {/* 直近10件 */}
+          <div className="timer-history">
+            {recentResults.map((r, i) => (
+              <div key={i} className="timer-history-item">
+                <div className="timer-history-date">{fmtDate(r.date)}</div>
+                <div className="timer-history-detail">
+                  <span className={r.completed ? 'timer-completed' : 'timer-incomplete'}>
+                    {r.completed ? '完走' : '途中終了'}
+                  </span>
+                  <span>{fmtTime(r.elapsed)} / {fmtTime(r.limitSec)}</span>
+                  <span>{r.reachedIndex + 1}/{r.totalSentences}文（{Math.round(r.reachRate * 100)}%）</span>
+                  <span className="text-muted">{r.scriptTitle}</span>
+                  {r.chapterName !== '全体' && (
+                    <span className="text-muted">/ {r.chapterName}</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 章ごとの進捗 */}
       {chapters.length > 1 && (
@@ -113,4 +154,17 @@ function StatCard({ label, value, accent }: { label: string; value: number; acce
       <div className="dashboard-stat-label">{label}</div>
     </div>
   );
+}
+
+function fmtTime(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function fmtDate(ts: number): string {
+  try {
+    const d = new Date(ts);
+    return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
+  } catch { return ''; }
 }

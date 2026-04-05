@@ -1073,3 +1073,53 @@ body {
   font-size: 0.85rem;
   min-width: 80px;
 }
+
+/* --- 本番履歴 --- */
+.timer-summary {
+  display: flex;
+  gap: 16px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.timer-summary strong {
+  color: var(--text-primary);
+}
+.timer-history {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+.timer-history-item {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.85rem;
+}
+.timer-history-item:last-child {
+  border-bottom: none;
+}
+.timer-history-date {
+  color: var(--text-muted);
+  min-width: 72px;
+  font-size: 0.8rem;
+}
+.timer-history-detail {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.timer-completed {
+  color: var(--success);
+  font-weight: 600;
+}
+.timer-incomplete {
+  color: var(--warning);
+  font-weight: 600;
+}

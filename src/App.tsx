@@ -33,6 +33,7 @@ import {
   saveRangeStart, loadRangeStart,
   saveRangeEnd, loadRangeEnd,
   saveDashboardStats, loadDashboardStats, type DashboardStats,
+  appendTimerResult, loadTimerResults, type TimerResult,
 } from './utils/storage';
 
 // --- ErrorBoundary ---
@@ -108,6 +109,7 @@ function AppInner() {
   const [pTimerFinished, setPTimerFinished] = useState(false);
   const [pTimerLimitMin, setPTimerLimitMin] = useState(5);
   const pTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [timerResults, setTimerResults] = useState<TimerResult[]>(() => loadTimerResults());
 
   const practiceRef = useRef<PracticePanelHandle>(null);
   const recordingRef = useRef<RecordingPanelHandle>(null);
@@ -208,6 +210,47 @@ function AppInner() {
     return () => { if (pTimerRef.current) { clearInterval(pTimerRef.current); pTimerRef.current = null; } };
   }, [pTimerRunning, pTimerLimitSec]);
   useEffect(() => { return () => { if (pTimerRef.current) clearInterval(pTimerRef.current); }; }, []);
+
+  // 台本名と章名を取得（結果保存用）
+  const currentScriptTitle = useMemo(() => {
+    const first30 = scriptText.replace(/^#.*\n?/gm, '').trim().slice(0, 30);
+    return first30 || '無題';
+  }, [scriptText]);
+  const currentChapterName = selectedChapter >= 0 && selectedChapter < chapters.length
+    ? chapters[selectedChapter].title : '全体';
+
+  /** タイマー結果を保存する共通関数 */
+  const saveTimerResult = useCallback((info: {
+    elapsed: number; limitSec: number; completed: boolean; reachedIndex: number;
+  }) => {
+    const result: TimerResult = {
+      date: Date.now(),
+      limitSec: info.limitSec,
+      elapsed: info.elapsed,
+      completed: info.completed,
+      reachedIndex: info.reachedIndex,
+      totalSentences: sentences.length,
+      reachRate: sentences.length > 0 ? (info.reachedIndex + 1) / sentences.length : 0,
+      scriptTitle: currentScriptTitle,
+      chapterName: currentChapterName,
+    };
+    setTimerResults(appendTimerResult(result));
+  }, [sentences.length, currentScriptTitle, currentChapterName]);
+
+  // プロンプタータイマー終了時に結果保存
+  const pTimerFinishedRef = useRef(false);
+  useEffect(() => {
+    if (pTimerFinished && !pTimerFinishedRef.current) {
+      pTimerFinishedRef.current = true;
+      saveTimerResult({
+        elapsed: pTimerElapsed,
+        limitSec: pTimerLimitSec,
+        completed: pTimerElapsed >= pTimerLimitSec,
+        reachedIndex: currentIndex,
+      });
+    }
+    if (!pTimerFinished) pTimerFinishedRef.current = false;
+  }, [pTimerFinished, pTimerElapsed, pTimerLimitSec, currentIndex, saveTimerResult]);
 
   const prompterTimer: PrompterTimer = {
     isRunning: pTimerRunning,
@@ -383,6 +426,7 @@ function AppInner() {
           autoWeakStats={autoWeakStats}
           dashboardStats={dashboardStats}
           recordingCount={recordingCount}
+          timerResults={timerResults}
           onClose={() => setShowDashboard(false)}
         />
       )}
@@ -466,6 +510,7 @@ function AppInner() {
               totalSentences={sentences.length}
               currentIndex={currentIndex}
               onClose={() => setShowTimer(false)}
+              onFinish={saveTimerResult}
             />
           )}
 
