@@ -78,6 +78,7 @@ body {
   color: var(--text-primary);
   line-height: 1.7;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
 
 /* --- アプリ全体 --- */
@@ -108,7 +109,9 @@ body {
 
 .header-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 /* --- ボタン共通 --- */
@@ -546,9 +549,20 @@ body {
 }
 
 /* --- レスポンシブ --- */
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .app {
     padding: 12px;
+  }
+
+  /* ヘッダー: 縦積み */
+  .app-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .header-actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .app-title {
@@ -556,12 +570,13 @@ body {
   }
 
   .sentence-display {
-    padding: 24px 16px;
-    min-height: 120px;
+    padding: 20px 14px;
+    min-height: 100px;
   }
 
   .sentence-text {
-    font-size: 1.15rem;
+    font-size: 1.1rem;
+    line-height: 1.8;
   }
 
   .control-group {
@@ -574,13 +589,18 @@ body {
   }
 
   .btn {
-    padding: 6px 12px;
-    font-size: 0.85rem;
+    padding: 6px 10px;
+    font-size: 0.8rem;
+  }
+
+  .btn-small {
+    padding: 4px 8px;
+    font-size: 0.75rem;
   }
 
   .btn-large {
-    padding: 10px 24px;
-    font-size: 1rem;
+    padding: 10px 20px;
+    font-size: 0.95rem;
   }
 
   .nav-controls,
@@ -592,6 +612,111 @@ body {
   .progress-stats {
     flex-direction: column;
     gap: 4px;
+  }
+
+  /* 台本管理: 保存行を縦積み、アクションボタンも折り返し */
+  .script-manager-save {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .script-list-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .script-list-actions {
+    width: 100%;
+  }
+
+  /* ダッシュボード: 統計カード2列 */
+  .dashboard-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .dashboard-stat-value {
+    font-size: 1.2rem;
+  }
+  .dashboard-chapter-row {
+    flex-wrap: wrap;
+  }
+  .dashboard-chapter-title {
+    min-width: auto;
+    width: 100%;
+    font-size: 0.8rem;
+  }
+
+  /* 本番履歴: 縦積み */
+  .timer-history-item {
+    flex-direction: column;
+    gap: 2px;
+    align-items: flex-start;
+  }
+  .timer-history-date {
+    min-width: auto;
+  }
+
+  /* 日別グラフ: 高さ縮小 */
+  .daily-graph {
+    height: 90px;
+    gap: 4px;
+  }
+
+  /* 録音パネル */
+  .recording-header {
+    flex-wrap: wrap;
+  }
+
+  /* プロンプター */
+  .prompter-toolbar {
+    padding: 8px 12px;
+    gap: 8px;
+  }
+  .prompter-settings {
+    margin-left: 0;
+    width: 100%;
+  }
+  .prompter-body {
+    padding: 16px;
+  }
+  .prompter-timer {
+    padding: 6px 12px;
+    gap: 8px;
+  }
+  .prompter-timer-clock {
+    font-size: 1.1rem;
+  }
+  .prompter-nav {
+    gap: 8px;
+    padding: 12px;
+  }
+
+  /* 差分ビュー */
+  .diff-body {
+    font-size: 0.7rem;
+  }
+
+  /* キーボードヒント */
+  .keyboard-hints {
+    gap: 4px;
+    font-size: 0.65rem;
+  }
+  .keyboard-hints span {
+    padding: 2px 6px;
+  }
+
+  /* 章セレクタ */
+  .chapter-selector {
+    gap: 8px;
+  }
+
+  /* 範囲指定入力 */
+  .range-number-input {
+    width: 52px;
+    font-size: 0.8rem;
+  }
+
+  /* バックアップ */
+  .backup-controls {
+    flex-direction: column;
+    gap: 6px;
   }
 }
 
@@ -879,18 +1004,7 @@ body {
   padding: 16px;
 }
 
-@media (max-width: 600px) {
-  .prompter-body {
-    padding: 20px;
-  }
-  .prompter-toolbar {
-    padding: 8px 12px;
-  }
-  .keyboard-hints {
-    gap: 6px;
-    font-size: 0.7rem;
-  }
-}
+/* プロンプター追加レスポンシブは上の768pxブロックに統合済み */
 
 /* --- 台本管理 --- */
 .script-manager {
@@ -916,6 +1030,7 @@ body {
   gap: 8px;
   align-items: center;
   margin-bottom: 12px;
+  flex-wrap: wrap;
 }
 .script-list {
   display: flex;
@@ -945,6 +1060,7 @@ body {
 .script-list-actions {
   display: flex;
   gap: 4px;
+  flex-wrap: wrap;
 }
 
 /* --- 章セレクタ --- */
@@ -1200,6 +1316,7 @@ body {
   font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
   font-size: 0.8rem;
   line-height: 1.6;
+  overflow-x: auto;
 }
 .diff-line {
   display: flex;
