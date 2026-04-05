@@ -14,11 +14,14 @@ interface Props {
   timerResults: TimerResult[];
   allSentences: string[];
   onClose: () => void;
+  /** 章の苦手だけ練習に遷移する（chapterIndex, weakMode） */
+  onPracticeChapterWeak?: (chapterIndex: number, mode: 'manual' | 'auto') => void;
 }
 
 export default function Dashboard({
   totalSentences, chapters, checkedItems, weakItems, autoWeakStats,
   dashboardStats, recordingCount, timerResults, allSentences, onClose,
+  onPracticeChapterWeak,
 }: Props) {
   const [graphDays, setGraphDays] = useState(7);
 
@@ -35,9 +38,12 @@ export default function Dashboard({
   const completedCount = timerResults.filter((r) => r.completed).length;
   const completionRate = timerResults.length > 0 ? completedCount / timerResults.length : 0;
 
-  // 日別データ
   const dailyData = getRecentDays(graphDays);
   const maxDaily = Math.max(1, ...dailyData.map((d) => d.practiceCount + d.speakCount + d.recordCount + d.timerCount));
+
+  // 到達率推移（直近10件、古い順）
+  const reachTrend = timerResults.slice(0, 10).reverse();
+  const maxReach = 100;
 
   return (
     <div className="dashboard">
@@ -57,7 +63,7 @@ export default function Dashboard({
         <StatCard label="本番回数" value={timerResults.length} />
       </div>
 
-      {/* 日別練習グラフ（期間切替付き） */}
+      {/* 日別練習グラフ */}
       <div className="dashboard-section">
         <div className="dashboard-section-header">
           <h4 className="dashboard-section-title">日別練習</h4>
@@ -87,6 +93,41 @@ export default function Dashboard({
         </div>
       </div>
 
+      {/* 到達率推移 */}
+      {reachTrend.length >= 2 && (
+        <div className="dashboard-section">
+          <h4 className="dashboard-section-title">到達率の推移（直近{reachTrend.length}回）</h4>
+          <div className="reach-chart">
+            <div className="reach-chart-axis">
+              <span>100%</span><span>50%</span><span>0%</span>
+            </div>
+            <div className="reach-chart-body">
+              {/* グリッド線 */}
+              <div className="reach-chart-grid" />
+              <div className="reach-chart-grid" style={{ bottom: '50%' }} />
+              {/* 棒 + ドット */}
+              {reachTrend.map((r, i) => {
+                const pct = Math.round(r.reachRate * 100);
+                return (
+                  <div key={i} className="reach-chart-col">
+                    <div className="reach-chart-bar-wrap">
+                      <div className={`reach-chart-bar ${r.completed ? 'reach-completed' : 'reach-incomplete'}`}
+                        style={{ height: `${pct}%` }}
+                        title={`${fmtDate(r.date)}: ${pct}% ${r.completed ? '完走' : '途中'}`} />
+                    </div>
+                    <span className="reach-chart-label">{pct}%</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <div className="reach-chart-legend">
+            <span className="reach-legend-item"><span className="reach-dot reach-completed" />完走</span>
+            <span className="reach-legend-item"><span className="reach-dot reach-incomplete" />途中終了</span>
+          </div>
+        </div>
+      )}
+
       {/* 本番履歴 */}
       {timerResults.length > 0 && (
         <div className="dashboard-section">
@@ -96,16 +137,13 @@ export default function Dashboard({
             <span>完走率: <strong>{Math.round(completionRate * 100)}%</strong>（{completedCount}/{timerResults.length}回）</span>
           </div>
 
-          {/* 版ごとの集計 */}
           {(() => {
             const versionMap = new Map<string, { count: number; totalReach: number; completed: number }>();
             for (const r of timerResults) {
               const vKey = r.scriptVersionAt ? fmtDate(r.scriptVersionAt) : '旧版';
               const label = `${r.scriptTitle ?? '不明'} (${vKey})`;
               const prev = versionMap.get(label) ?? { count: 0, totalReach: 0, completed: 0 };
-              prev.count++;
-              prev.totalReach += r.reachRate;
-              if (r.completed) prev.completed++;
+              prev.count++; prev.totalReach += r.reachRate; if (r.completed) prev.completed++;
               versionMap.set(label, prev);
             }
             if (versionMap.size <= 1) return null;
@@ -133,12 +171,8 @@ export default function Dashboard({
                   </span>
                   <span>{fmtTime(r.elapsed)} / {fmtTime(r.limitSec)}</span>
                   <span>{r.reachedIndex + 1}/{r.totalSentences}文（{Math.round(r.reachRate * 100)}%）</span>
-                  {r.scriptVersionAt && (
-                    <span className="version-badge">{fmtDate(r.scriptVersionAt)}版</span>
-                  )}
-                  {!r.scriptVersionAt && r.scriptId && (
-                    <span className="text-muted" style={{ fontSize: '0.7rem' }}>旧版</span>
-                  )}
+                  {r.scriptVersionAt && <span className="version-badge">{fmtDate(r.scriptVersionAt)}版</span>}
+                  {!r.scriptVersionAt && r.scriptId && <span className="text-muted" style={{ fontSize: '0.7rem' }}>旧版</span>}
                 </div>
               </div>
             ))}
@@ -146,7 +180,7 @@ export default function Dashboard({
         </div>
       )}
 
-      {/* 章ごとの進捗 + 苦手ランキング */}
+      {/* 章ごとの進捗 + 苦手ランキング + 苦手練習ボタン */}
       {chapters.length > 1 && (
         <div className="dashboard-section">
           <h4 className="dashboard-section-title">章ごとの進捗・苦手</h4>
@@ -157,8 +191,8 @@ export default function Dashboard({
             const autoWeak = Array.from({ length: count }, (_, k) => ch.startIndex + k)
               .filter((i) => { const s = autoWeakStats[String(i)]; return s ? isAutoWeak(s) : false; }).length;
             const pct = count > 0 ? Math.round((checked / count) * 100) : 0;
+            const hasWeak = manualWeak > 0 || autoWeak > 0;
 
-            // 章内の苦手上位3文
             const chapterWeakTop = Array.from({ length: count }, (_, k) => ch.startIndex + k)
               .map((i) => ({ index: i, score: calcScore(autoWeakStats[String(i)] ?? { fastReveals: 0, replays: 0, reRecords: 0 }) }))
               .filter((x) => x.score > 0)
@@ -178,6 +212,21 @@ export default function Dashboard({
                     {autoWeak > 0 && <span style={{ color: 'var(--warning)' }}> ⚡{autoWeak}</span>}
                   </span>
                 </div>
+                {/* 苦手練習ボタン */}
+                {hasWeak && onPracticeChapterWeak && (
+                  <div className="chapter-weak-actions">
+                    {manualWeak > 0 && (
+                      <button className="btn btn-danger btn-small" onClick={() => onPracticeChapterWeak(ci, 'manual')}>
+                        ★苦手{manualWeak}文を練習
+                      </button>
+                    )}
+                    {autoWeak > 0 && (
+                      <button className="btn btn-warning btn-small" onClick={() => onPracticeChapterWeak(ci, 'auto')}>
+                        ⚡自動苦手{autoWeak}文を練習
+                      </button>
+                    )}
+                  </div>
+                )}
                 {chapterWeakTop.length > 0 && (
                   <div className="chapter-weak-ranking">
                     {chapterWeakTop.map((item) => (

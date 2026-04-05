@@ -1477,3 +1477,160 @@ body {
 [data-theme='dark'] .diff-highlight {
   background: rgba(255, 200, 0, 0.2);
 }
+
+/* --- 章苦手練習ボタン --- */
+.chapter-weak-actions {
+  display: flex;
+  gap: 6px;
+  padding: 4px 0 2px 16px;
+  flex-wrap: wrap;
+}
+
+/* --- 到達率推移グラフ --- */
+.reach-chart {
+  display: flex;
+  gap: 4px;
+  height: 100px;
+  padding: 4px 0;
+}
+.reach-chart-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  min-width: 28px;
+  text-align: right;
+  padding-right: 4px;
+}
+.reach-chart-body {
+  flex: 1;
+  display: flex;
+  gap: 4px;
+  position: relative;
+  align-items: flex-end;
+}
+.reach-chart-grid {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--border-color);
+  pointer-events: none;
+}
+.reach-chart-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.reach-chart-bar-wrap {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.reach-chart-bar {
+  width: 60%;
+  max-width: 32px;
+  border-radius: 3px 3px 0 0;
+  min-height: 2px;
+  transition: height 0.3s;
+}
+.reach-completed {
+  background: var(--success);
+}
+.reach-incomplete {
+  background: var(--warning);
+}
+.reach-chart-label {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+}
+.reach-chart-legend {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+.reach-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.reach-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.reach-dot.reach-completed {
+  background: var(--success);
+}
+.reach-dot.reach-incomplete {
+  background: var(--warning);
+}
+
+/* --- 録音一覧 --- */
+.recording-list-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+}
+.recording-list-body {
+  max-height: 400px;
+  overflow-y: auto;
+}
+.recording-list-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-color);
+  flex-wrap: wrap;
+}
+.recording-list-item:last-child {
+  border-bottom: none;
+}
+.recording-list-item.has-rec {
+  background: var(--success-bg);
+}
+.recording-list-preview {
+  flex: 1;
+  font-size: 0.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.recording-list-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.recording-list-duration {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  min-width: 40px;
+}
+
+@media (max-width: 768px) {
+  .reach-chart {
+    height: 80px;
+  }
+  .recording-list-item {
+    font-size: 0.8rem;
+  }
+  .chapter-weak-actions {
+    padding-left: 0;
+  }
+}

@@ -12,6 +12,7 @@ import type { PrompterTimer } from './components/PrompterView';
 import ScriptManager from './components/ScriptManager';
 import TimerMode from './components/TimerMode';
 import Dashboard from './components/Dashboard';
+import RecordingList from './components/RecordingList';
 import { parseScript, parseChapters, SAMPLE_SCRIPT } from './utils/scriptParser';
 import { getJapaneseVoice, cancelSpeech } from './utils/speech';
 import { incrementDaily } from './utils/dailyLog';
@@ -102,6 +103,7 @@ function AppInner() {
   // 新機能 state
   const [showScriptManager, setShowScriptManager] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
+  const [showRecordingList, setShowRecordingList] = useState(false);
   const [showTimer, setShowTimer] = useState(false);
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>(() => loadDashboardStats());
   const [recordingCount, setRecordingCount] = useState(0);
@@ -384,6 +386,17 @@ function AppInner() {
     setActiveScriptId(loadActiveScriptId() || 'default');
   };
 
+  // 章の苦手だけ練習（ダッシュボードから遷移）
+  const handlePracticeChapterWeak = useCallback((chapterIndex: number, mode: 'manual' | 'auto') => {
+    cancelSpeech();
+    setSelectedChapter(chapterIndex);
+    setRangeMode('all');
+    if (mode === 'manual') { setWeakOnly(true); setAutoWeakOnly(false); }
+    else { setWeakOnly(false); setAutoWeakOnly(true); }
+    setCurrentIndex(0);
+    setShowDashboard(false);
+  }, []);
+
   // プロンプター
   if (isPrompter && sentences.length > 0) {
     return (
@@ -413,6 +426,9 @@ function AppInner() {
           </button>
           <button className="btn btn-secondary btn-small" onClick={() => setIsPrompter(true)} disabled={sentences.length === 0}>
             プロンプター
+          </button>
+          <button className="btn btn-secondary btn-small" onClick={() => setShowRecordingList(!showRecordingList)}>
+            {showRecordingList ? '閉じる' : '録音一覧'}
           </button>
           <button className="btn btn-secondary btn-small" onClick={() => setShowProgress(!showProgress)}>
             {showProgress ? '練習に戻る' : '進捗一覧'}
@@ -446,6 +462,17 @@ function AppInner() {
           timerResults={timerResults}
           allSentences={allSentences}
           onClose={() => setShowDashboard(false)}
+          onPracticeChapterWeak={handlePracticeChapterWeak}
+        />
+      )}
+
+      {/* 録音一覧パネル */}
+      {showRecordingList && (
+        <RecordingList
+          scriptId={activeScriptId}
+          allSentences={allSentences}
+          onNavigate={(i) => { setCurrentIndex(i); setShowRecordingList(false); }}
+          onClose={() => setShowRecordingList(false)}
         />
       )}
 
