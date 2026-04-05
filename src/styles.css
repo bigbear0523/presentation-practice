@@ -1455,7 +1455,33 @@ body {
   background: var(--success-bg);
   color: var(--success);
   border-radius: 8px;
-  cursor: help;
+}
+.rec-badge-btn {
+  cursor: pointer;
+  border: none;
+}
+.rec-badge-btn:hover {
+  opacity: 0.8;
+}
+.rec-expand {
+  padding: 4px 8px 8px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rec-expand-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+.rec-expand-preview {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  color: var(--text-secondary);
 }
 
 /* --- 差分比較 強化 --- */

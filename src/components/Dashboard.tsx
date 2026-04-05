@@ -16,14 +16,18 @@ interface Props {
   onClose: () => void;
   /** 章の苦手だけ練習に遷移する（chapterIndex, weakMode） */
   onPracticeChapterWeak?: (chapterIndex: number, mode: 'manual' | 'auto') => void;
+  /** 文番号へ移動（ダッシュボードを閉じて練習画面に遷移） */
+  onNavigate?: (index: number) => void;
 }
 
 export default function Dashboard({
   totalSentences, chapters, checkedItems, weakItems, autoWeakStats,
   dashboardStats, recordingCount, timerResults, allSentences, onClose,
   onPracticeChapterWeak,
+  onNavigate,
 }: Props) {
   const [graphDays, setGraphDays] = useState(7);
+  const [expandedResultIdx, setExpandedResultIdx] = useState<number | null>(null);
 
   const weakRanking = Object.entries(autoWeakStats)
     .map(([key, stats]) => ({ index: parseInt(key, 10), stats, score: calcScore(stats) }))
@@ -174,11 +178,30 @@ export default function Dashboard({
                   {r.scriptVersionAt && <span className="version-badge">{fmtDate(r.scriptVersionAt)}版</span>}
                   {!r.scriptVersionAt && r.scriptId && <span className="text-muted" style={{ fontSize: '0.7rem' }}>旧版</span>}
                   {r.recordedIndices && r.recordedIndices.length > 0 && (
-                    <span className="rec-badge" title={`録音済み: ${r.recordedIndices.map((x) => x + 1).join(', ')}文目`}>
-                      録音{r.recordedIndices.length}文
-                    </span>
+                    <button className="rec-badge rec-badge-btn"
+                      onClick={() => setExpandedResultIdx(expandedResultIdx === i ? null : i)}>
+                      録音{r.recordedIndices.length}文 {expandedResultIdx === i ? '▲' : '▼'}
+                    </button>
                   )}
                 </div>
+                {/* 録音文の展開一覧 */}
+                {expandedResultIdx === i && r.recordedIndices && (
+                  <div className="rec-expand">
+                    {r.recordedIndices.map((idx) => (
+                      <div key={idx} className="rec-expand-row">
+                        <span className="sentence-number">{idx + 1}.</span>
+                        <span className="rec-expand-preview">
+                          {allSentences[idx]?.slice(0, 35) ?? '（文データなし）'}
+                        </span>
+                        {onNavigate && (
+                          <button className="btn btn-secondary btn-small" onClick={() => onNavigate(idx)}>
+                            移動
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>

@@ -476,6 +476,7 @@ function AppInner() {
           allSentences={allSentences}
           onClose={() => setShowDashboard(false)}
           onPracticeChapterWeak={handlePracticeChapterWeak}
+          onNavigate={(i) => { setCurrentIndex(i); setShowDashboard(false); }}
         />
       )}
 
