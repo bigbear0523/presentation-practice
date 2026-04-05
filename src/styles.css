@@ -526,6 +526,15 @@ body {
   border-top: 1px solid var(--border-color);
 }
 
+.backup-controls {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
 /* --- フォールバック通知 --- */
 .fallback-notice {
   text-align: center;

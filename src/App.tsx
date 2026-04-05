@@ -15,6 +15,7 @@ import Dashboard from './components/Dashboard';
 import { parseScript, parseChapters, SAMPLE_SCRIPT } from './utils/scriptParser';
 import { getJapaneseVoice, cancelSpeech } from './utils/speech';
 import { incrementDaily } from './utils/dailyLog';
+import { downloadBackup, restoreBackup } from './utils/backup';
 import {
   saveScript, loadScript,
   saveCheckedItems, loadCheckedItems,
@@ -113,6 +114,8 @@ function AppInner() {
   const pTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [timerResults, setTimerResults] = useState<TimerResult[]>(() => loadTimerResults());
   const [activeScriptId, setActiveScriptId] = useState(() => loadActiveScriptId() || 'default');
+  const [backupStatus, setBackupStatus] = useState<string | null>(null);
+  const backupFileRef = useRef<HTMLInputElement>(null);
 
   const practiceRef = useRef<PracticePanelHandle>(null);
   const recordingRef = useRef<RecordingPanelHandle>(null);
@@ -561,6 +564,30 @@ function AppInner() {
 
       <footer className="app-footer">
         <p>プレゼン暗記練習アプリ — データはすべてブラウザ内に保存されます（外部送信なし）</p>
+        <div className="backup-controls">
+          <button className="btn btn-secondary btn-small" onClick={async () => {
+            setBackupStatus('エクスポート中...');
+            try { await downloadBackup(); setBackupStatus('バックアップをダウンロードしました'); }
+            catch { setBackupStatus('エクスポートに失敗しました'); }
+          }}>
+            一括バックアップ
+          </button>
+          <button className="btn btn-secondary btn-small" onClick={() => backupFileRef.current?.click()}>
+            復元
+          </button>
+          <input ref={backupFileRef} type="file" accept=".json" style={{ display: 'none' }} onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            if (!confirm('現在のデータにバックアップの内容を上書き復元します。よろしいですか？')) { e.target.value = ''; return; }
+            setBackupStatus('復元中...');
+            try {
+              const msg = await restoreBackup(file);
+              setBackupStatus(msg + '（リロードすると反映されます）');
+            } catch { setBackupStatus('復元に失敗しました'); }
+            e.target.value = '';
+          }} />
+          {backupStatus && <span className="text-muted" style={{ fontSize: '0.8rem' }}>{backupStatus}</span>}
+        </div>
       </footer>
     </div>
   );
