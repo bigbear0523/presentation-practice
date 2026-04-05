@@ -75,6 +75,10 @@ export interface TimerResult {
   reachRate: number;    // 到達率（0〜1）
   scriptTitle: string;
   chapterName: string;
+  /** 台本ID（後方互換: 旧データでは undefined） */
+  scriptId?: string;
+  /** 台本版の保存日時（updatedAt）。版の識別に使う */
+  scriptVersionAt?: number;
 }
 
 // --- 低レベルヘルパー ---

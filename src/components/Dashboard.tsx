@@ -95,6 +95,34 @@ export default function Dashboard({
             <span>平均到達率: <strong>{Math.round(avgReachRate * 100)}%</strong></span>
             <span>完走率: <strong>{Math.round(completionRate * 100)}%</strong>（{completedCount}/{timerResults.length}回）</span>
           </div>
+
+          {/* 版ごとの集計 */}
+          {(() => {
+            const versionMap = new Map<string, { count: number; totalReach: number; completed: number }>();
+            for (const r of timerResults) {
+              const vKey = r.scriptVersionAt ? fmtDate(r.scriptVersionAt) : '旧版';
+              const label = `${r.scriptTitle ?? '不明'} (${vKey})`;
+              const prev = versionMap.get(label) ?? { count: 0, totalReach: 0, completed: 0 };
+              prev.count++;
+              prev.totalReach += r.reachRate;
+              if (r.completed) prev.completed++;
+              versionMap.set(label, prev);
+            }
+            if (versionMap.size <= 1) return null;
+            return (
+              <div className="version-stats">
+                {Array.from(versionMap.entries()).map(([label, v]) => (
+                  <div key={label} className="version-stat-row">
+                    <span className="version-stat-label">{label}</span>
+                    <span className="text-muted">
+                      {v.count}回 / 到達率{Math.round((v.totalReach / v.count) * 100)}% / 完走{v.completed}回
+                    </span>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+
           <div className="timer-history">
             {recentResults.map((r, i) => (
               <div key={i} className="timer-history-item">
@@ -105,6 +133,12 @@ export default function Dashboard({
                   </span>
                   <span>{fmtTime(r.elapsed)} / {fmtTime(r.limitSec)}</span>
                   <span>{r.reachedIndex + 1}/{r.totalSentences}文（{Math.round(r.reachRate * 100)}%）</span>
+                  {r.scriptVersionAt && (
+                    <span className="version-badge">{fmtDate(r.scriptVersionAt)}版</span>
+                  )}
+                  {!r.scriptVersionAt && r.scriptId && (
+                    <span className="text-muted" style={{ fontSize: '0.7rem' }}>旧版</span>
+                  )}
                 </div>
               </div>
             ))}

@@ -36,7 +36,7 @@ import {
   saveRangeEnd, loadRangeEnd,
   saveDashboardStats, loadDashboardStats, type DashboardStats,
   appendTimerResult, loadTimerResults, type TimerResult,
-  loadActiveScriptId,
+  loadActiveScriptId, loadScripts,
 } from './utils/storage';
 
 // --- ErrorBoundary ---
@@ -229,6 +229,9 @@ function AppInner() {
   const saveTimerResult = useCallback((info: {
     elapsed: number; limitSec: number; completed: boolean; reachedIndex: number;
   }) => {
+    // 現在の台本の版情報を取得
+    const scripts = loadScripts();
+    const activeScript = scripts.find((s) => s.id === activeScriptId);
     const result: TimerResult = {
       date: Date.now(),
       limitSec: info.limitSec,
@@ -239,10 +242,12 @@ function AppInner() {
       reachRate: sentences.length > 0 ? (info.reachedIndex + 1) / sentences.length : 0,
       scriptTitle: currentScriptTitle,
       chapterName: currentChapterName,
+      scriptId: activeScriptId,
+      scriptVersionAt: activeScript?.updatedAt,
     };
     setTimerResults(appendTimerResult(result));
     incrementDaily('timerCount');
-  }, [sentences.length, currentScriptTitle, currentChapterName]);
+  }, [sentences.length, currentScriptTitle, currentChapterName, activeScriptId]);
 
   // プロンプタータイマー終了時に結果保存
   const pTimerFinishedRef = useRef(false);
