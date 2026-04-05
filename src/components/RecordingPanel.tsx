@@ -6,6 +6,8 @@ interface Props {
   totalCount: number;
   /** 苦手自動判定: 録り直し時に呼ばれる */
   onReRecord?: (index: number) => void;
+  /** 録音数が変わったときに通知（ダッシュボード用） */
+  onRecordingCountChange?: (count: number) => void;
 }
 
 type RecState = 'idle' | 'recording' | 'playing';
@@ -22,7 +24,7 @@ export interface RecordingPanelHandle {
  * - 既存の読み上げ機能と競合しないよう、録音・再生開始時に TTS を停止
  */
 const RecordingPanel = forwardRef<RecordingPanelHandle, Props>(function RecordingPanel(
-  { currentIndex, totalCount, onReRecord },
+  { currentIndex, totalCount, onReRecord, onRecordingCountChange },
   ref,
 ) {
   const [recState, setRecState] = useState<RecState>('idle');
@@ -36,6 +38,11 @@ const RecordingPanel = forwardRef<RecordingPanelHandle, Props>(function Recordin
   const unmountedRef = useRef(false);
 
   const hasRecording = recordings.has(currentIndex);
+
+  // 録音数が変わったらApp側に通知
+  useEffect(() => {
+    onRecordingCountChange?.(recordings.size);
+  }, [recordings.size, onRecordingCountChange]);
   const recordingCount = recordings.size;
 
   useEffect(() => {

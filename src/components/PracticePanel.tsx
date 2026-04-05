@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
 import type { PracticeMode } from './Controls';
-import { speak, cancelSpeech, pauseSpeech, resumeSpeech } from '../utils/speech';
+import { speak, cancelSpeech, pauseSpeech, resumeSpeech, getSpeechGeneration } from '../utils/speech';
 
 interface Props {
   sentences: string[];
@@ -15,13 +15,10 @@ interface Props {
   onToggleChecked: (index: number) => void;
   weakItems: number[];
   onToggleWeak: (index: number) => void;
-  /** 苦手自動判定: 読み上げ時に呼ばれる */
   onReplay?: (index: number) => void;
-  /** 苦手自動判定: 素早く表示した時に呼ばれる */
   onFastReveal?: (index: number) => void;
 }
 
-/** キーボード操作用にApp側から呼び出せるハンドル */
 export interface PracticePanelHandle {
   speakOrStop: () => void;
   toggleReveal: () => void;
@@ -29,15 +26,6 @@ export interface PracticePanelHandle {
   goPrev: () => void;
 }
 
-/**
- * メインの練習パネル
- *
- * 【なぜ useRef を多用するか】
- * speak() の onEnd は発話完了時（数秒後）に実行される非同期コールバック。
- * React の props/state はレンダー時点の値をクロージャに閉じ込めるため、
- * onEnd 内で参照すると「発話開始時」の古い値を掴む（stale closure）。
- * useRef.current は常に最新値を指すため、この問題を回避できる。
- */
 const PracticePanel = forwardRef<PracticePanelHandle, Props>(function PracticePanel({
   sentences,
   currentIndex,
@@ -57,7 +45,6 @@ const PracticePanel = forwardRef<PracticePanelHandle, Props>(function PracticePa
   const [isRevealed, setIsRevealed] = useState(false);
   const [speakingState, setSpeakingState] = useState<'idle' | 'speaking' | 'paused'>('idle');
 
-  // --- 最新値を ref で保持（非同期コールバックから安全に参照するため） ---
   const sentencesRef = useRef(sentences);
   const currentIndexRef = useRef(currentIndex);
   const voiceRef = useRef(voice);
@@ -73,16 +60,26 @@ const PracticePanel = forwardRef<PracticePanelHandle, Props>(function PracticePa
   const pendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const unmountedRef = useRef(false);
-
-  // 苦手自動判定: 文が表示された時刻を記録し、素早い表示を検出
   const shownAtRef = useRef<number>(Date.now());
+
+  /**
+   * 手動停止フラグ。
+   * true のとき、useEffect による自動再生（auto モードの currentIndex 変化）を抑止する。
+   * ユーザーが明示的に再生操作をしたときに false に戻す。
+   */
+  const stoppedRef = useRef(false);
 
   const total = sentences.length;
   const currentSentence = sentences[currentIndex] ?? '';
 
+  /**
+   * 全再生状態を安全にリセットする中央関数。
+   * cancelSpeech() で世代を進め、全タイマー・フラグをクリアする。
+   */
   const resetSpeechState = useCallback(() => {
     cancelSpeech();
     isReadingAll.current = false;
+    stoppedRef.current = true; // 停止フラグ ON
     if (pendingTimerRef.current !== null) {
       clearTimeout(pendingTimerRef.current);
       pendingTimerRef.current = null;
@@ -92,7 +89,6 @@ const PracticePanel = forwardRef<PracticePanelHandle, Props>(function PracticePa
     }
   }, []);
 
-  // インデックス変更時にリセット & 表示時刻を記録
   useEffect(() => {
     setIsRevealed(false);
     shownAtRef.current = Date.now();
@@ -102,6 +98,7 @@ const PracticePanel = forwardRef<PracticePanelHandle, Props>(function PracticePa
     resetSpeechState();
   }, [sentences, resetSpeechState]);
 
+  // 自動送りモードのタイマー（practiceMode === 'auto' のときのみ）
   useEffect(() => {
     if (practiceMode !== 'auto') {
       if (autoTimerRef.current) {
@@ -110,6 +107,8 @@ const PracticePanel = forwardRef<PracticePanelHandle, Props>(function PracticePa
       }
       return;
     }
+    // auto モードに切り替わったら停止フラグ解除
+    stoppedRef.current = false;
     autoTimerRef.current = setInterval(() => {
       onChangeIndexRef.current(-1);
     }, autoInterval * 1000);
@@ -138,27 +137,43 @@ const PracticePanel = forwardRef<PracticePanelHandle, Props>(function PracticePa
     };
   }, []);
 
+  /**
+   * 指定テキストを読み上げる。
+   * onEnd / setTimeout 内で世代チェック + 停止フラグチェックを二重で行う。
+   */
   const speakText = (text: string) => {
     if (!text || unmountedRef.current) return;
+
     if (pendingTimerRef.current !== null) {
       clearTimeout(pendingTimerRef.current);
       pendingTimerRef.current = null;
     }
+
     setSpeakingState('speaking');
+
     speak(text, {
       voice: voiceRef.current,
       rate: speechRateRef.current,
       onEnd: () => {
         if (unmountedRef.current) return;
+        // 停止済みなら何もしない
+        if (stoppedRef.current) {
+          setSpeakingState('idle');
+          return;
+        }
+
         if (isReadingAll.current) {
           const idx = currentIndexRef.current;
           const len = sentencesRef.current.length;
           if (idx < len - 1) {
             const nextIdx = idx + 1;
             onChangeIndexRef.current(nextIdx);
+            const genBeforeTimer = getSpeechGeneration();
             pendingTimerRef.current = setTimeout(() => {
               pendingTimerRef.current = null;
               if (unmountedRef.current) return;
+              if (stoppedRef.current) { setSpeakingState('idle'); return; }
+              if (getSpeechGeneration() !== genBeforeTimer) return;
               if (isReadingAll.current) {
                 speakText(sentencesRef.current[nextIdx] ?? '');
               } else {
@@ -182,18 +197,24 @@ const PracticePanel = forwardRef<PracticePanelHandle, Props>(function PracticePa
   };
 
   const speakCurrent = () => {
+    stoppedRef.current = false; // 明示的な再生操作 → 停止フラグ解除
     isReadingAll.current = false;
     onReplay?.(currentIndexRef.current);
     speakText(sentencesRef.current[currentIndexRef.current] ?? '');
   };
 
   const speakAll = () => {
+    stoppedRef.current = false; // 明示的な再生操作 → 停止フラグ解除
     isReadingAll.current = true;
     speakText(sentencesRef.current[currentIndexRef.current] ?? '');
   };
 
+  /**
+   * auto モードで currentIndex が変わったら自動読み上げ。
+   * ただし stoppedRef.current === true（手動停止後）なら発火しない。
+   */
   useEffect(() => {
-    if (practiceMode === 'auto' && currentSentence) {
+    if (practiceMode === 'auto' && currentSentence && !stoppedRef.current) {
       isReadingAll.current = false;
       speakText(currentSentence);
     }
@@ -209,7 +230,6 @@ const PracticePanel = forwardRef<PracticePanelHandle, Props>(function PracticePa
   const goNext = () => { resetSpeechState(); if (currentIndex < total - 1) onChangeIndex(currentIndex + 1); };
   const goRandom = () => { resetSpeechState(); onChangeIndex(Math.floor(Math.random() * total)); };
 
-  // 表示切替（苦手自動判定: 2秒以内に表示 → 素早い表示としてカウント）
   const handleRevealToggle = () => {
     if (!isRevealed && (practiceMode === 'blanked' || practiceMode === 'hint')) {
       const elapsed = Date.now() - shownAtRef.current;
@@ -220,7 +240,6 @@ const PracticePanel = forwardRef<PracticePanelHandle, Props>(function PracticePa
     setIsRevealed((prev) => !prev);
   };
 
-  // --- キーボード操作ハンドル ---
   useImperativeHandle(ref, () => ({
     speakOrStop() {
       if (speakingState === 'idle') speakCurrent();

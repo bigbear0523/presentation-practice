@@ -8,7 +8,10 @@ import ProgressPanel from './components/ProgressPanel';
 import RecordingPanel from './components/RecordingPanel';
 import type { RecordingPanelHandle } from './components/RecordingPanel';
 import PrompterView from './components/PrompterView';
-import { parseScript, SAMPLE_SCRIPT } from './utils/scriptParser';
+import ScriptManager from './components/ScriptManager';
+import TimerMode from './components/TimerMode';
+import Dashboard from './components/Dashboard';
+import { parseScript, parseChapters, SAMPLE_SCRIPT } from './utils/scriptParser';
 import { getJapaneseVoice, cancelSpeech } from './utils/speech';
 import {
   saveScript, loadScript,
@@ -24,6 +27,11 @@ import {
   clearAllData,
   saveAutoWeakStats, loadAutoWeakStats, isAutoWeak,
   type SentenceStatsMap, type SentenceStats,
+  type RangeMode,
+  saveRangeMode, loadRangeMode,
+  saveRangeStart, loadRangeStart,
+  saveRangeEnd, loadRangeEnd,
+  saveDashboardStats, loadDashboardStats, type DashboardStats,
 } from './utils/storage';
 
 // --- ErrorBoundary ---
@@ -59,12 +67,7 @@ class ErrorBoundary extends React.Component<
   }
 }
 
-// --- 統計ヘルパー ---
-function bumpStat(
-  stats: SentenceStatsMap,
-  index: number,
-  field: keyof SentenceStats,
-): SentenceStatsMap {
+function bumpStat(stats: SentenceStatsMap, index: number, field: keyof SentenceStats): SentenceStatsMap {
   const key = String(index);
   const prev = stats[key] ?? { fastReveals: 0, replays: 0, reRecords: 0 };
   return { ...stats, [key]: { ...prev, [field]: prev[field] + 1 } };
@@ -87,15 +90,23 @@ function AppInner() {
   const [showProgress, setShowProgress] = useState(false);
   const [isPrompter, setIsPrompter] = useState(false);
   const [autoWeakStats, setAutoWeakStats] = useState<SentenceStatsMap>(() => loadAutoWeakStats());
+  const [rangeMode, setRangeMode] = useState<RangeMode>(() => loadRangeMode());
+  const [rangeStart, setRangeStart] = useState(() => loadRangeStart());
+  const [rangeEnd, setRangeEnd] = useState(() => loadRangeEnd());
+  const [rangeAnchor, setRangeAnchor] = useState(() => loadCurrentIndex());
+  // 新機能 state
+  const [showScriptManager, setShowScriptManager] = useState(false);
+  const [showDashboard, setShowDashboard] = useState(false);
+  const [showTimer, setShowTimer] = useState(false);
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats>(() => loadDashboardStats());
+  const [recordingCount, setRecordingCount] = useState(0);
+  const [selectedChapter, setSelectedChapter] = useState(-1); // -1 = 全体
 
-  // キーボード操作用 ref
   const practiceRef = useRef<PracticePanelHandle>(null);
   const recordingRef = useRef<RecordingPanelHandle>(null);
-  // プロンプター中のSpace読み上げ用（PrompterViewから関数を受け取る）
   const prompterSpeakRef = useRef<(() => void) | null>(null);
 
   useEffect(() => { getJapaneseVoice().then((v) => setVoice(v)); }, []);
-
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
     saveDarkMode(darkMode);
@@ -103,19 +114,52 @@ function AppInner() {
 
   const allSentences = useMemo(() => parseScript(scriptText, splitMode), [scriptText, splitMode]);
 
-  // 苦手フィルタ (手動 → 自動苦手 → 全体)
+  // 章の検出
+  const chapters = useMemo(() => {
+    if (splitMode !== 'sentence') return [];
+    return parseChapters(scriptText, allSentences);
+  }, [scriptText, allSentences, splitMode]);
+
+  // 章フィルタ → 範囲フィルタ → 苦手フィルタ
+  const chapterSentences = useMemo(() => {
+    if (selectedChapter < 0 || selectedChapter >= chapters.length) return allSentences;
+    const ch = chapters[selectedChapter];
+    return allSentences.slice(ch.startIndex, ch.endIndex + 1);
+  }, [allSentences, chapters, selectedChapter]);
+
+  const rangeSentences = useMemo(() => {
+    if (rangeMode === 'all') return chapterSentences;
+    const total = chapterSentences.length;
+    if (total === 0) return chapterSentences;
+    let start = 0;
+    let end = total - 1;
+    if (rangeMode === 'from-current') {
+      start = Math.min(rangeAnchor, total - 1);
+    } else if (rangeMode === 'around') {
+      start = Math.max(0, rangeAnchor - 3);
+      end = Math.min(total - 1, rangeAnchor + 3);
+    } else if (rangeMode === 'custom') {
+      start = Math.max(0, Math.min(rangeStart, total - 1));
+      end = Math.max(start, Math.min(rangeEnd, total - 1));
+    }
+    return chapterSentences.slice(start, end + 1);
+  }, [chapterSentences, rangeMode, rangeStart, rangeEnd, rangeAnchor]);
+
   const sentences = useMemo(() => {
-    if (weakOnly) return allSentences.filter((_, i) => weakItems.includes(i));
+    if (weakOnly) {
+      const offset = allSentences.indexOf(rangeSentences[0]);
+      return rangeSentences.filter((_, i) => weakItems.includes(offset + i));
+    }
     if (autoWeakOnly) {
-      return allSentences.filter((_, i) => {
-        const s = autoWeakStats[String(i)];
+      const offset = allSentences.indexOf(rangeSentences[0]);
+      return rangeSentences.filter((_, i) => {
+        const s = autoWeakStats[String(offset + i)];
         return s ? isAutoWeak(s) : false;
       });
     }
-    return allSentences;
-  }, [allSentences, weakOnly, autoWeakOnly, weakItems, autoWeakStats]);
+    return rangeSentences;
+  }, [rangeSentences, allSentences, weakOnly, autoWeakOnly, weakItems, autoWeakStats]);
 
-  // 自動苦手の文数（ボタンの enabled 判定用）
   const autoWeakCount = useMemo(() => {
     return allSentences.filter((_, i) => {
       const s = autoWeakStats[String(i)];
@@ -124,9 +168,7 @@ function AppInner() {
   }, [allSentences, autoWeakStats]);
 
   useEffect(() => {
-    if (currentIndex >= sentences.length) {
-      setCurrentIndex(Math.max(0, sentences.length - 1));
-    }
+    if (currentIndex >= sentences.length) setCurrentIndex(Math.max(0, sentences.length - 1));
   }, [sentences.length, currentIndex]);
 
   // localStorage 保存
@@ -137,16 +179,17 @@ function AppInner() {
   useEffect(() => { saveHintLength(hintLength); }, [hintLength]);
   useEffect(() => { saveAutoInterval(autoInterval); }, [autoInterval]);
   useEffect(() => { saveAutoWeakStats(autoWeakStats); }, [autoWeakStats]);
+  useEffect(() => { saveRangeMode(rangeMode); }, [rangeMode]);
+  useEffect(() => { saveRangeStart(rangeStart); }, [rangeStart]);
+  useEffect(() => { saveRangeEnd(rangeEnd); }, [rangeEnd]);
+  useEffect(() => { saveDashboardStats(dashboardStats); }, [dashboardStats]);
 
-  // --- キーボードショートカット ---
+  // キーボード
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // IME変換中は無視（日本語入力中の誤発火防止）
       if (e.isComposing) return;
-      // テキスト入力中は無視
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      // プロンプター中
       if (isPrompter) {
         if (e.key === 'ArrowRight') { e.preventDefault(); setCurrentIndex((p) => Math.min(p + 1, allSentences.length - 1)); }
         if (e.key === 'ArrowLeft') { e.preventDefault(); setCurrentIndex((p) => Math.max(p - 1, 0)); }
@@ -173,20 +216,25 @@ function AppInner() {
   }, [isPrompter, allSentences.length]);
 
   // --- コールバック ---
+  const resetAll = () => {
+    setCurrentIndex(0); setCheckedItems([]); setWeakItems([]);
+    setWeakOnly(false); setAutoWeakOnly(false); setAutoWeakStats({});
+    setRangeMode('all'); setRangeStart(0); setRangeEnd(0); setRangeAnchor(0);
+    setSelectedChapter(-1);
+  };
+
   const handleApplyScript = (text: string) => {
     cancelSpeech();
     setScriptText(text); saveScript(text);
-    setCurrentIndex(0); setCheckedItems([]); setWeakItems([]);
-    setWeakOnly(false); setAutoWeakOnly(false);
-    setAutoWeakStats({});
+    resetAll();
+    // ダッシュボード: 練習カウント
+    setDashboardStats((prev) => ({ ...prev, totalPracticeCount: prev.totalPracticeCount + 1 }));
   };
 
   const handleChangeSplitMode = (mode: SplitMode) => {
     cancelSpeech();
     setSplitMode(mode); saveSplitMode(mode);
-    setCurrentIndex(0); setCheckedItems([]); setWeakItems([]);
-    setWeakOnly(false); setAutoWeakOnly(false);
-    setAutoWeakStats({});
+    resetAll();
   };
 
   const handleChangePracticeMode = (mode: PracticeMode) => {
@@ -205,16 +253,12 @@ function AppInner() {
   }, [sentences.length]);
 
   const handleToggleChecked = (index: number) => {
-    setCheckedItems((prev) =>
-      prev.includes(index) ? prev.filter((i) => i !== index) : [...prev, index]
-    );
+    setCheckedItems((prev) => prev.includes(index) ? prev.filter((i) => i !== index) : [...prev, index]);
   };
 
   const handleToggleWeak = (index: number) => {
     const realIndex = weakOnly ? allSentences.indexOf(sentences[index]) : index;
-    setWeakItems((prev) =>
-      prev.includes(realIndex) ? prev.filter((i) => i !== realIndex) : [...prev, realIndex]
-    );
+    setWeakItems((prev) => prev.includes(realIndex) ? prev.filter((i) => i !== realIndex) : [...prev, realIndex]);
   };
 
   const handleToggleWeakOnly = () => {
@@ -227,18 +271,25 @@ function AppInner() {
     setAutoWeakOnly((prev) => !prev); setCurrentIndex(0);
   };
 
-  // --- 苦手自動判定コールバック ---
   const handleReplay = useCallback((index: number) => {
     setAutoWeakStats((prev) => bumpStat(prev, index, 'replays'));
+    setDashboardStats((prev) => ({ ...prev, totalSpeakCount: prev.totalSpeakCount + 1 }));
   }, []);
   const handleFastReveal = useCallback((index: number) => {
     setAutoWeakStats((prev) => bumpStat(prev, index, 'fastReveals'));
   }, []);
   const handleReRecord = useCallback((index: number) => {
     setAutoWeakStats((prev) => bumpStat(prev, index, 'reRecords'));
+    setDashboardStats((prev) => ({ ...prev, totalRecordCount: prev.totalRecordCount + 1 }));
   }, []);
 
-  // --- プロンプターモード ---
+  // 台本管理から読み込み
+  const handleLoadFromManager = (text: string) => {
+    handleApplyScript(text);
+    setShowScriptManager(false);
+  };
+
+  // プロンプター
   if (isPrompter && sentences.length > 0) {
     return (
       <PrompterView
@@ -258,6 +309,12 @@ function AppInner() {
       <header className="app-header">
         <h1 className="app-title">プレゼン暗記練習</h1>
         <div className="header-actions">
+          <button className="btn btn-secondary btn-small" onClick={() => setShowScriptManager(!showScriptManager)}>
+            {showScriptManager ? '閉じる' : '台本管理'}
+          </button>
+          <button className="btn btn-secondary btn-small" onClick={() => setShowDashboard(!showDashboard)}>
+            {showDashboard ? '閉じる' : 'ダッシュボード'}
+          </button>
           <button className="btn btn-secondary btn-small" onClick={() => setIsPrompter(true)} disabled={sentences.length === 0}>
             プロンプター
           </button>
@@ -265,12 +322,59 @@ function AppInner() {
             {showProgress ? '練習に戻る' : '進捗一覧'}
           </button>
           <button className="btn btn-secondary btn-small" onClick={() => setDarkMode(!darkMode)}>
-            {darkMode ? '☀ ライト' : '🌙 ダーク'}
+            {darkMode ? '☀' : '🌙'}
           </button>
         </div>
       </header>
 
+      {/* 台本管理パネル */}
+      {showScriptManager && (
+        <ScriptManager
+          currentText={scriptText}
+          onLoad={handleLoadFromManager}
+          onClose={() => setShowScriptManager(false)}
+        />
+      )}
+
+      {/* ダッシュボード */}
+      {showDashboard && (
+        <Dashboard
+          totalSentences={allSentences.length}
+          chapters={chapters}
+          checkedItems={checkedItems}
+          weakItems={weakItems}
+          autoWeakStats={autoWeakStats}
+          dashboardStats={dashboardStats}
+          recordingCount={recordingCount}
+          onClose={() => setShowDashboard(false)}
+        />
+      )}
+
       <ScriptInput initialText={scriptText} onApply={handleApplyScript} />
+
+      {/* 章選択（2章以上ある場合のみ表示） */}
+      {chapters.length > 1 && (
+        <div className="chapter-selector">
+          <label className="control-label">章</label>
+          <div className="btn-group">
+            <button
+              className={`btn btn-mode btn-small ${selectedChapter === -1 ? 'active' : ''}`}
+              onClick={() => { setSelectedChapter(-1); setCurrentIndex(0); }}
+            >
+              全体
+            </button>
+            {chapters.map((ch, ci) => (
+              <button
+                key={ci}
+                className={`btn btn-mode btn-small ${selectedChapter === ci ? 'active' : ''}`}
+                onClick={() => { setSelectedChapter(ci); setCurrentIndex(0); }}
+              >
+                {ch.title}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {sentences.length === 0 ? (
         <div className="empty-state">
@@ -304,7 +408,29 @@ function AppInner() {
             autoWeakOnly={autoWeakOnly}
             onToggleAutoWeakOnly={handleToggleAutoWeakOnly}
             hasAutoWeakItems={autoWeakCount > 0}
+            rangeMode={rangeMode}
+            onChangeRangeMode={(m) => { setRangeAnchor(currentIndex); setRangeMode(m); setCurrentIndex(0); }}
+            rangeStart={rangeStart}
+            rangeEnd={rangeEnd}
+            onChangeRangeStart={setRangeStart}
+            onChangeRangeEnd={setRangeEnd}
+            totalSentenceCount={chapterSentences.length}
+            activeSentenceCount={sentences.length}
           />
+
+          {/* 本番モード */}
+          <div style={{ marginBottom: 8 }}>
+            <button className="btn btn-secondary btn-small" onClick={() => setShowTimer(!showTimer)}>
+              {showTimer ? '本番モードを閉じる' : '本番モード'}
+            </button>
+          </div>
+          {showTimer && (
+            <TimerMode
+              totalSentences={sentences.length}
+              currentIndex={currentIndex}
+              onClose={() => setShowTimer(false)}
+            />
+          )}
 
           <PracticePanel
             ref={practiceRef}
@@ -329,9 +455,9 @@ function AppInner() {
             currentIndex={currentIndex}
             totalCount={sentences.length}
             onReRecord={handleReRecord}
+            onRecordingCountChange={setRecordingCount}
           />
 
-          {/* キーボードショートカット一覧 */}
           <div className="keyboard-hints">
             <span>←→ 移動</span>
             <span>Space 再生/停止</span>

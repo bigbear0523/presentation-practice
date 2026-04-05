@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { speak, cancelSpeech } from '../utils/speech';
+import { speak, cancelSpeech, getSpeechGeneration } from '../utils/speech';
 
 interface Props {
   sentences: string[];
@@ -8,14 +8,9 @@ interface Props {
   voice: SpeechSynthesisVoice | null;
   speechRate: number;
   onClose: () => void;
-  /** App側のrefにSpaceキー用の読み上げ関数を渡す */
   onSpeakRef?: React.MutableRefObject<(() => void) | null>;
 }
 
-/**
- * プロンプター表示モード
- * 大きな文字で1文ずつ表示し、自動送り・背景切替・文字サイズ調整が可能
- */
 export default function PrompterView({
   sentences,
   currentIndex,
@@ -33,40 +28,65 @@ export default function PrompterView({
 
   const autoTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const unmountedRef = useRef(false);
+  /**
+   * 手動停止フラグ。stopAll() で true になり、
+   * 自動送り effect の読み上げを抑止する。
+   * autoPlay を ON に切り替えたときに false に戻す。
+   */
+  const stoppedRef = useRef(false);
+
   const total = sentences.length;
   const currentSentence = sentences[currentIndex] ?? '';
 
-  // 現在の文を読み上げ（Spaceキーからも呼ばれる）
+  /** 全停止: 読み上げキャンセル + 自動送り停止 + 停止フラグ ON */
+  const stopAll = () => {
+    cancelSpeech();
+    stoppedRef.current = true;
+    setAutoPlay(false);
+    if (!unmountedRef.current) setIsSpeaking(false);
+  };
+
   const speakCurrent = () => {
     if (isSpeaking) {
-      cancelSpeech();
-      setIsSpeaking(false);
+      stopAll();
       return;
     }
     if (!currentSentence) return;
+    stoppedRef.current = false; // 明示的な再生操作 → 停止フラグ解除
     cancelSpeech();
     setIsSpeaking(true);
+    const gen = getSpeechGeneration();
     speak(currentSentence, {
       voice,
       rate: speechRate,
-      onEnd: () => { if (!unmountedRef.current) setIsSpeaking(false); },
-      onError: () => { if (!unmountedRef.current) setIsSpeaking(false); },
+      onEnd: () => {
+        if (unmountedRef.current || stoppedRef.current) return;
+        if (getSpeechGeneration() !== gen) return;
+        setIsSpeaking(false);
+      },
+      onError: () => {
+        if (unmountedRef.current || stoppedRef.current) return;
+        if (getSpeechGeneration() !== gen) return;
+        setIsSpeaking(false);
+      },
     });
   };
 
-  // App側のrefに読み上げ関数を渡す（Spaceキー用）
   useEffect(() => {
     if (onSpeakRef) onSpeakRef.current = speakCurrent;
     return () => { if (onSpeakRef) onSpeakRef.current = null; };
   });
 
-  // 自動送り
+  // 自動送りタイマー
   useEffect(() => {
     if (!autoPlay) {
       if (autoTimerRef.current) { clearInterval(autoTimerRef.current); autoTimerRef.current = null; }
       return;
     }
+    // autoPlay ON → 停止フラグ解除
+    stoppedRef.current = false;
     autoTimerRef.current = setInterval(() => {
+      if (stoppedRef.current) return; // 念のため
       onChangeIndex(-1);
     }, autoSec * 1000);
     return () => {
@@ -76,14 +96,25 @@ export default function PrompterView({
 
   // 自動送りで文が変わったら読み上げ
   useEffect(() => {
+    // 手動停止後は自動再生しない
+    if (stoppedRef.current) return;
     if (autoPlay && currentSentence) {
       cancelSpeech();
       setIsSpeaking(true);
+      const gen = getSpeechGeneration();
       speak(currentSentence, {
         voice,
         rate: speechRate,
-        onEnd: () => { if (!unmountedRef.current) setIsSpeaking(false); },
-        onError: () => { if (!unmountedRef.current) setIsSpeaking(false); },
+        onEnd: () => {
+          if (unmountedRef.current || stoppedRef.current) return;
+          if (getSpeechGeneration() !== gen) return;
+          setIsSpeaking(false);
+        },
+        onError: () => {
+          if (unmountedRef.current || stoppedRef.current) return;
+          if (getSpeechGeneration() !== gen) return;
+          setIsSpeaking(false);
+        },
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -98,8 +129,8 @@ export default function PrompterView({
     };
   }, []);
 
-  const goPrev = () => { cancelSpeech(); setIsSpeaking(false); if (currentIndex > 0) onChangeIndex(currentIndex - 1); };
-  const goNext = () => { cancelSpeech(); setIsSpeaking(false); if (currentIndex < total - 1) onChangeIndex(currentIndex + 1); };
+  const goPrev = () => { stopAll(); if (currentIndex > 0) onChangeIndex(currentIndex - 1); };
+  const goNext = () => { stopAll(); if (currentIndex < total - 1) onChangeIndex(currentIndex + 1); };
 
   const bgStyles: Record<string, React.CSSProperties> = {
     dark:  { background: '#111', color: '#fff' },
@@ -111,9 +142,8 @@ export default function PrompterView({
 
   return (
     <div className="prompter-overlay" style={bgStyles[bgMode]}>
-      {/* ツールバー */}
       <div className="prompter-toolbar">
-        <button className="btn btn-secondary btn-small" onClick={onClose}>
+        <button className="btn btn-secondary btn-small" onClick={() => { stopAll(); onClose(); }}>
           通常モードに戻る
         </button>
 
@@ -142,7 +172,10 @@ export default function PrompterView({
 
           <label className="prompter-label">
             <input type="checkbox" checked={autoPlay}
-              onChange={(e) => setAutoPlay(e.target.checked)} />
+              onChange={(e) => {
+                if (!e.target.checked) { stopAll(); }
+                else { stoppedRef.current = false; setAutoPlay(true); }
+              }} />
             自動送り {autoSec}秒
           </label>
           {autoPlay && (
@@ -152,19 +185,16 @@ export default function PrompterView({
         </div>
       </div>
 
-      {/* 進捗バー */}
       <div className="prompter-progress">
         <div className="prompter-progress-fill" style={{ width: `${progressPct}%` }} />
       </div>
 
-      {/* メイン表示 */}
       <div className="prompter-body" onClick={goNext}>
         <p className="prompter-text" style={{ fontSize }}>
           {currentSentence}
         </p>
       </div>
 
-      {/* ナビ */}
       <div className="prompter-nav">
         <button className="btn btn-secondary" onClick={goPrev} disabled={currentIndex === 0}>
           ◀ 前へ
@@ -177,7 +207,6 @@ export default function PrompterView({
         </button>
       </div>
 
-      {/* キーヒント */}
       <div className="prompter-key-hints">
         ←→ 移動 / Space 読む / Esc 戻る
       </div>

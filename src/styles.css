@@ -283,6 +283,21 @@ body {
   accent-color: var(--accent);
 }
 
+.range-custom {
+  gap: 8px;
+}
+
+.range-number-input {
+  width: 64px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  text-align: center;
+}
+
 /* --- 練習パネル --- */
 .practice-panel {
   display: flex;
@@ -811,4 +826,202 @@ body {
     gap: 6px;
     font-size: 0.7rem;
   }
+}
+
+/* --- 台本管理 --- */
+.script-manager {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+}
+.script-manager-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.script-manager-header h3 {
+  font-size: 1rem;
+  font-weight: 700;
+}
+.script-manager-save {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.script-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.script-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+.script-list-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.script-list-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.script-list-actions {
+  display: flex;
+  gap: 4px;
+}
+
+/* --- 章セレクタ --- */
+.chapter-selector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+/* --- 本番モード --- */
+.timer-mode {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+}
+.timer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.timer-setup {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.timer-display {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.timer-clock {
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-align: center;
+}
+.timer-elapsed {
+  color: var(--text-primary);
+}
+.timer-limit {
+  color: var(--text-muted);
+  font-size: 1rem;
+}
+.timer-bar {
+  position: relative;
+  height: 8px;
+  background: var(--progress-bg);
+  border-radius: 4px;
+  overflow: visible;
+}
+.timer-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 4px;
+  transition: width 1s linear;
+}
+.timer-bar-marker {
+  position: absolute;
+  top: -3px;
+  width: 4px;
+  height: 14px;
+  background: var(--danger);
+  border-radius: 2px;
+  transition: left 0.3s;
+}
+.timer-pace {
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.timer-result {
+  text-align: center;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  line-height: 1.8;
+}
+
+/* --- ダッシュボード --- */
+.dashboard {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+}
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.dashboard-header h3 {
+  font-size: 1rem;
+  font-weight: 700;
+}
+.dashboard-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.dashboard-stat-card {
+  text-align: center;
+  padding: 12px 8px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+}
+.dashboard-stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+.dashboard-stat-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.dashboard-section {
+  margin-bottom: 16px;
+}
+.dashboard-section-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+}
+.dashboard-chapter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+.dashboard-chapter-title {
+  font-size: 0.85rem;
+  min-width: 80px;
 }

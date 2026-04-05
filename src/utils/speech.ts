@@ -47,7 +47,10 @@ export function getJapaneseVoice(): Promise<SpeechSynthesisVoice | null> {
   });
 }
 
-/** 読み上げを安全にキャンセルし、世代を進める */
+/**
+ * 読み上げを安全にキャンセルし、世代を進める。
+ * 呼び出し後、古い utterance の onEnd/onError は無視される。
+ */
 export function cancelSpeech(): void {
   generation++;
   if (hasSpeechSynthesis()) {
@@ -55,7 +58,7 @@ export function cancelSpeech(): void {
   }
 }
 
-/** 現在の世代番号を返す */
+/** 現在の世代番号を返す。呼び出し側が onEnd の有効性を判定するために使う */
 export function getSpeechGeneration(): number {
   return generation;
 }
@@ -71,7 +74,6 @@ export function speak(
   }
 ): void {
   if (!hasSpeechSynthesis()) {
-    // 読み上げ不可でもフローを壊さないよう onEnd だけ呼ぶ
     options.onEnd?.();
     return;
   }
@@ -92,8 +94,6 @@ export function speak(
   utterance.rate = options.rate ?? 1.0;
 
   utterance.onend = () => {
-    // cancel() 後にブラウザが遅れて onEnd を発火させることがある。
-    // 世代が変わっていたらこの utterance は無効なので無視する。
     if (generation !== myGeneration) return;
     options.onEnd?.();
   };

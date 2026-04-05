@@ -1,4 +1,5 @@
 import React from 'react';
+import type { RangeMode } from '../utils/storage';
 
 export type PracticeMode = 'normal' | 'blanked' | 'hint' | 'auto';
 export type SplitMode = 'sentence' | 'paragraph';
@@ -20,6 +21,15 @@ interface Props {
   autoWeakOnly: boolean;
   onToggleAutoWeakOnly: () => void;
   hasAutoWeakItems: boolean;
+  // 部分練習
+  rangeMode: RangeMode;
+  onChangeRangeMode: (mode: RangeMode) => void;
+  rangeStart: number;
+  rangeEnd: number;
+  onChangeRangeStart: (n: number) => void;
+  onChangeRangeEnd: (n: number) => void;
+  totalSentenceCount: number;
+  activeSentenceCount: number;
 }
 
 /**
@@ -42,6 +52,14 @@ export default function Controls({
   autoWeakOnly,
   onToggleAutoWeakOnly,
   hasAutoWeakItems,
+  rangeMode,
+  onChangeRangeMode,
+  rangeStart,
+  rangeEnd,
+  onChangeRangeStart,
+  onChangeRangeEnd,
+  totalSentenceCount,
+  activeSentenceCount,
 }: Props) {
   const modes: { value: PracticeMode; label: string }[] = [
     { value: 'normal', label: '通常表示' },
@@ -152,6 +170,64 @@ export default function Controls({
           {autoWeakOnly ? '⚡ 自動苦手のみ' : '⚡ 自動苦手だけ練習'}
         </button>
       </div>
+
+      {/* 部分練習 */}
+      <div className="control-group">
+        <label className="control-label">練習範囲</label>
+        <div className="btn-group">
+          {([
+            { value: 'all', label: '全体' },
+            { value: 'from-current', label: '現在文から後ろ' },
+            { value: 'around', label: '前後3文' },
+            { value: 'custom', label: '範囲指定' },
+          ] as const).map((r) => (
+            <button
+              key={r.value}
+              className={`btn btn-mode btn-small ${rangeMode === r.value ? 'active' : ''}`}
+              onClick={() => onChangeRangeMode(r.value)}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {rangeMode === 'custom' && (
+        <div className="control-group range-custom">
+          <label className="control-label">
+            {rangeStart + 1}文目 〜 {rangeEnd + 1}文目
+          </label>
+          <input
+            type="number"
+            className="range-number-input"
+            min={1}
+            max={totalSentenceCount}
+            value={rangeStart + 1}
+            onChange={(e) => {
+              const v = Math.max(0, Math.min(Number(e.target.value) - 1, totalSentenceCount - 1));
+              onChangeRangeStart(v);
+            }}
+          />
+          <span>〜</span>
+          <input
+            type="number"
+            className="range-number-input"
+            min={1}
+            max={totalSentenceCount}
+            value={rangeEnd + 1}
+            onChange={(e) => {
+              const v = Math.max(0, Math.min(Number(e.target.value) - 1, totalSentenceCount - 1));
+              onChangeRangeEnd(v);
+            }}
+          />
+        </div>
+      )}
+      {rangeMode !== 'all' && (
+        <div className="control-group">
+          <span className="text-muted">
+            練習対象: {activeSentenceCount} / {totalSentenceCount} 文
+          </span>
+        </div>
+      )}
     </div>
   );
 }
