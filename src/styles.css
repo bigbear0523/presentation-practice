@@ -1,0 +1,814 @@
+/* ============================================
+   プレゼン暗記練習アプリ - スタイル
+   ============================================ */
+
+/* --- CSS変数（テーマ） --- */
+:root,
+[data-theme='light'] {
+  --bg-primary: #f5f5f7;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --bg-input: #ffffff;
+  --text-primary: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --text-muted: #aeaeb2;
+  --border-color: #d2d2d7;
+  --accent: #0071e3;
+  --accent-hover: #0077ed;
+  --accent-light: #e8f2ff;
+  --success: #34c759;
+  --success-bg: #e8f9ed;
+  --warning: #ff9500;
+  --warning-bg: #fff4e6;
+  --danger: #ff3b30;
+  --danger-bg: #ffe5e3;
+  --speaking-bg: #e8f2ff;
+  --speaking-border: #0071e3;
+  --hidden-bg: #f0f0f5;
+  --progress-bg: #e5e5ea;
+  --progress-fill: #0071e3;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme='dark'] {
+  --bg-primary: #1c1c1e;
+  --bg-secondary: #2c2c2e;
+  --bg-card: #2c2c2e;
+  --bg-input: #3a3a3c;
+  --text-primary: #f5f5f7;
+  --text-secondary: #a1a1a6;
+  --text-muted: #636366;
+  --border-color: #48484a;
+  --accent: #0a84ff;
+  --accent-hover: #409cff;
+  --accent-light: #1c3a5e;
+  --success: #30d158;
+  --success-bg: #1a3d26;
+  --warning: #ff9f0a;
+  --warning-bg: #3d2e0a;
+  --danger: #ff453a;
+  --danger-bg: #3d1512;
+  --speaking-bg: #1c3a5e;
+  --speaking-border: #0a84ff;
+  --hidden-bg: #3a3a3c;
+  --progress-bg: #48484a;
+  --progress-fill: #0a84ff;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* --- リセット & ベース --- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN',
+    'Noto Sans JP', 'Yu Gothic', 'Meiryo', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --- アプリ全体 --- */
+.app {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- ヘッダー --- */
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 0;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.app-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* --- ボタン共通 --- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.btn:hover {
+  opacity: 0.85;
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-small {
+  padding: 4px 10px;
+  font-size: 0.8rem;
+}
+
+.btn-large {
+  padding: 12px 32px;
+  font-size: 1.1rem;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+}
+
+.btn-secondary {
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+.btn-success {
+  background: var(--success);
+  color: #fff;
+  border-color: var(--success);
+}
+
+.btn-warning {
+  background: var(--warning);
+  color: #fff;
+  border-color: var(--warning);
+}
+
+.btn-danger {
+  background: var(--danger);
+  color: #fff;
+  border-color: var(--danger);
+}
+
+.btn-mode {
+  border-radius: 6px;
+}
+
+.btn-mode.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.btn-group {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+/* --- 台本入力 --- */
+.script-input {
+  margin-bottom: 16px;
+}
+
+.script-input-header {
+  margin-bottom: 8px;
+}
+
+.script-input-body {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+
+.script-textarea {
+  width: 100%;
+  min-height: 200px;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  line-height: 1.7;
+  resize: vertical;
+  background: var(--bg-input);
+  color: var(--text-primary);
+}
+
+.script-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-light);
+}
+
+.script-textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.script-input-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.text-muted {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* --- コントロールパネル --- */
+.controls {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.control-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  min-width: 100px;
+}
+
+.range-input {
+  flex: 1;
+  max-width: 200px;
+  accent-color: var(--accent);
+}
+
+/* --- 練習パネル --- */
+.practice-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* 現在位置 */
+.position-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.position-text {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.progress-bar-container {
+  flex: 1;
+  height: 6px;
+  background: var(--progress-bg);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-bar-container.large {
+  height: 10px;
+  border-radius: 5px;
+  margin: 8px 0;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: var(--progress-fill);
+  border-radius: inherit;
+  transition: width 0.3s ease;
+}
+
+/* メイン表示エリア */
+.sentence-display {
+  background: var(--bg-card);
+  border: 2px solid var(--border-color);
+  border-radius: 16px;
+  padding: 40px 32px;
+  min-height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+  transition: all 0.3s ease;
+}
+
+.sentence-display.speaking {
+  border-color: var(--speaking-border);
+  background: var(--speaking-bg);
+}
+
+.sentence-display.hidden-text {
+  background: var(--hidden-bg);
+}
+
+.sentence-text {
+  font-size: 1.4rem;
+  line-height: 2;
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.hidden-text .sentence-text {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* 表示/非表示ボタン */
+.reveal-controls {
+  display: flex;
+  justify-content: center;
+}
+
+/* 読み上げコントロール */
+.speech-controls {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ナビゲーション */
+.nav-controls {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* チェック・苦手マーク */
+.mark-controls {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* --- 進捗パネル --- */
+.progress-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+
+.progress-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.progress-stats {
+  display: flex;
+  gap: 16px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.stat-checked {
+  color: var(--success);
+}
+
+.stat-weak {
+  color: var(--danger);
+}
+
+.sentence-list {
+  max-height: 500px;
+  overflow-y: auto;
+  margin-top: 12px;
+}
+
+.sentence-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.sentence-item:last-child {
+  border-bottom: none;
+}
+
+.sentence-item:hover {
+  background: var(--accent-light);
+}
+
+.sentence-item.current {
+  background: var(--accent-light);
+  font-weight: 600;
+}
+
+.sentence-item.checked {
+  opacity: 0.7;
+}
+
+.sentence-number {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  min-width: 28px;
+}
+
+.sentence-preview {
+  flex: 1;
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sentence-marks {
+  display: flex;
+  gap: 4px;
+}
+
+.mark-check {
+  color: var(--success);
+}
+
+.mark-weak {
+  color: var(--danger);
+}
+
+.mark-auto-weak {
+  color: var(--warning);
+  cursor: help;
+}
+
+.stat-auto-weak {
+  color: var(--warning);
+}
+
+/* --- 空状態 --- */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+}
+
+/* --- フッター --- */
+.app-footer {
+  margin-top: auto;
+  padding: 20px 0;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border-color);
+}
+
+/* --- フォールバック通知 --- */
+.fallback-notice {
+  text-align: center;
+  padding: 12px;
+  background: var(--warning-bg);
+  color: var(--warning);
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+/* --- レスポンシブ --- */
+@media (max-width: 600px) {
+  .app {
+    padding: 12px;
+  }
+
+  .app-title {
+    font-size: 1.2rem;
+  }
+
+  .sentence-display {
+    padding: 24px 16px;
+    min-height: 120px;
+  }
+
+  .sentence-text {
+    font-size: 1.15rem;
+  }
+
+  .control-group {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .control-label {
+    min-width: auto;
+  }
+
+  .btn {
+    padding: 6px 12px;
+    font-size: 0.85rem;
+  }
+
+  .btn-large {
+    padding: 10px 24px;
+    font-size: 1rem;
+  }
+
+  .nav-controls,
+  .speech-controls,
+  .mark-controls {
+    gap: 6px;
+  }
+
+  .progress-stats {
+    flex-direction: column;
+    gap: 4px;
+  }
+}
+
+/* --- スクロールバーのスタイル --- */
+.sentence-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sentence-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sentence-list::-webkit-scrollbar-thumb {
+  background: var(--text-muted);
+  border-radius: 3px;
+}
+
+/* --- アニメーション --- */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.sentence-display {
+  animation: fadeIn 0.2s ease;
+}
+
+/* --- 録音パネル --- */
+.recording-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 16px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.recording-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.recording-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.recording-indicator {
+  color: var(--danger);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.playing-indicator {
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.recording-exists {
+  color: var(--success);
+  font-size: 0.85rem;
+}
+
+.recording-error {
+  color: var(--danger);
+  font-size: 0.85rem;
+}
+
+/* 録音中ボタンの点滅アニメーション */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.recording-active {
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.recording-status {
+  min-height: 1.4em;
+}
+
+/* --- 状態バッジ共通 --- */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.status-speaking {
+  background: var(--accent-light);
+  color: var(--accent);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.status-paused {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.status-recording {
+  background: var(--danger-bg);
+  color: var(--danger);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.status-playing {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+/* --- キーボードショートカット一覧 --- */
+.keyboard-hints {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding: 8px 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.keyboard-hints span {
+  padding: 2px 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+/* --- プロンプター --- */
+.prompter-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+}
+
+.prompter-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  flex-wrap: wrap;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+
+.prompter-toolbar:hover {
+  opacity: 1;
+}
+
+.prompter-pos {
+  font-size: 0.9rem;
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+.prompter-settings {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.prompter-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+/* プロンプター進捗バー */
+.prompter-progress {
+  height: 3px;
+  background: rgba(128, 128, 128, 0.3);
+  width: 100%;
+}
+
+.prompter-progress-fill {
+  height: 100%;
+  background: var(--accent, #0071e3);
+  transition: width 0.3s ease;
+}
+
+/* プロンプター キーヒント */
+.prompter-key-hints {
+  text-align: center;
+  padding: 6px;
+  font-size: 0.7rem;
+  opacity: 0.4;
+}
+
+.prompter-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.prompter-text {
+  text-align: center;
+  line-height: 1.6;
+  max-width: 90%;
+  word-break: break-word;
+  font-weight: 500;
+}
+
+.prompter-nav {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px;
+}
+
+@media (max-width: 600px) {
+  .prompter-body {
+    padding: 20px;
+  }
+  .prompter-toolbar {
+    padding: 8px 12px;
+  }
+  .keyboard-hints {
+    gap: 6px;
+    font-size: 0.7rem;
+  }
+}
