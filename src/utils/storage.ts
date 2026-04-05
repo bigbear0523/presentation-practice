@@ -40,13 +40,22 @@ export interface SentenceStats {
 }
 export type SentenceStatsMap = Record<string, SentenceStats>;
 
-/** 複数台本管理 */
+/** 台本の過去版 */
+export interface ScriptVersion {
+  text: string;
+  savedAt: number;
+}
+
+/** 複数台本管理（history はオプショナルで後方互換） */
 export interface SavedScript {
   id: string;
   title: string;
   text: string;
   updatedAt: number;
+  history?: ScriptVersion[];
 }
+
+const MAX_HISTORY = 10;
 
 /** 学習ダッシュボード統計 */
 export interface DashboardStats {
@@ -244,4 +253,26 @@ export function appendTimerResult(result: TimerResult): TimerResult[] {
   const next = [result, ...prev].slice(0, 50);
   saveTimerResults(next);
   return next;
+}
+
+// --- 台本バージョン管理 ---
+
+/**
+ * 台本を上書き保存し、変更があれば旧版を history に追加する。
+ * scripts 配列全体を返す。
+ */
+export function updateScriptWithHistory(
+  scripts: SavedScript[],
+  scriptId: string,
+  newText: string,
+): SavedScript[] {
+  return scripts.map((s) => {
+    if (s.id !== scriptId) return s;
+    // テキストが変わっていなければ日時だけ更新
+    if (s.text === newText) return { ...s, updatedAt: Date.now() };
+    // 旧版を履歴に追加
+    const prevVersion: ScriptVersion = { text: s.text, savedAt: s.updatedAt };
+    const history = [prevVersion, ...(s.history ?? [])].slice(0, MAX_HISTORY);
+    return { ...s, text: newText, updatedAt: Date.now(), history };
+  });
 }

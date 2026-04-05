@@ -1211,3 +1211,41 @@ body {
   white-space: pre-wrap;
   word-break: break-all;
 }
+
+/* --- バージョン管理 --- */
+.version-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  background: var(--accent-light);
+  color: var(--accent);
+  border-radius: 8px;
+}
+.version-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+  flex-wrap: wrap;
+}
+.version-item:last-child {
+  border-bottom: none;
+}
+.version-current {
+  background: var(--accent-light);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+.version-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.version-label {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
