@@ -1428,6 +1428,25 @@ body {
   font-size: 0.8rem;
 }
 
+/* --- 版ごとの本番結果リスト --- */
+.version-results {
+  padding: 4px 12px 8px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.version-result-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.version-result-summary {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
 /* --- 差分比較 強化 --- */
 .diff-stats {
   display: flex;

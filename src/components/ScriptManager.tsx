@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import {
-  type SavedScript, type ScriptVersion,
+  type SavedScript, type ScriptVersion, type TimerResult,
   saveScripts, loadScripts, saveActiveScriptId, updateScriptWithHistory,
 } from '../utils/storage';
 import DiffView from './DiffView';
@@ -9,6 +9,8 @@ interface Props {
   currentText: string;
   onLoad: (text: string) => void;
   onClose: () => void;
+  /** 本番結果一覧（履歴画面で版ごとの結果を表示するため） */
+  timerResults?: TimerResult[];
 }
 
 type ViewMode =
@@ -16,7 +18,7 @@ type ViewMode =
   | { kind: 'diff'; textA: string; textB: string; labelA: string; labelB: string }
   | { kind: 'history'; script: SavedScript };
 
-export default function ScriptManager({ currentText, onLoad, onClose }: Props) {
+export default function ScriptManager({ currentText, onLoad, onClose, timerResults = [] }: Props) {
   const [scripts, setScripts] = useState<SavedScript[]>(() => loadScripts());
   const [editTitle, setEditTitle] = useState('');
   const [importError, setImportError] = useState<string | null>(null);
@@ -106,10 +108,24 @@ export default function ScriptManager({ currentText, onLoad, onClose }: Props) {
     );
   }
 
+  // --- 版に紐づく本番結果を取得 ---
+  const getResultsForVersion = (scriptId: string, versionAt: number | undefined): TimerResult[] => {
+    if (!versionAt) return [];
+    return timerResults.filter((r) => r.scriptId === scriptId && r.scriptVersionAt === versionAt);
+  };
+
+  const fmtTime = (sec: number) => {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
   // --- 履歴ビュー ---
   if (view.kind === 'history') {
     const s = view.script;
     const history = s.history ?? [];
+    const currentResults = getResultsForVersion(s.id, s.updatedAt);
+
     return (
       <div className="script-manager">
         <div className="script-manager-header">
@@ -119,31 +135,52 @@ export default function ScriptManager({ currentText, onLoad, onClose }: Props) {
 
         {/* 現在版 */}
         <div className="version-item version-current">
-          <span className="version-label">現在版</span>
-          <span className="text-muted" style={{ fontSize: '0.75rem' }}>{fmtDate(s.updatedAt)} / {s.text.length}文字</span>
+          <div className="version-info">
+            <span className="version-label">現在版</span>
+            <span className="text-muted" style={{ fontSize: '0.75rem' }}>{fmtDate(s.updatedAt)} / {s.text.length}文字</span>
+          </div>
+          {currentResults.length > 0 && (
+            <span className="version-result-summary">本番{currentResults.length}回 / 到達率{Math.round(currentResults.reduce((a, r) => a + r.reachRate, 0) / currentResults.length * 100)}%</span>
+          )}
         </div>
+
+        {/* 現在版の本番結果 */}
+        {currentResults.length > 0 && (
+          <VersionResultList results={currentResults} fmtDate={fmtDate} fmtTime={fmtTime} />
+        )}
 
         {history.length === 0 ? (
           <p className="text-muted" style={{ padding: '12px 0' }}>過去の履歴はありません</p>
         ) : (
           <div className="script-list">
-            {history.map((ver, vi) => (
-              <div key={vi} className="version-item">
-                <div className="version-info">
-                  <span className="version-label">v{history.length - vi}</span>
-                  <span className="text-muted" style={{ fontSize: '0.75rem' }}>
-                    {fmtDate(ver.savedAt)} / {ver.text.length}文字
-                  </span>
+            {history.map((ver, vi) => {
+              const verResults = getResultsForVersion(s.id, ver.savedAt);
+              return (
+                <div key={vi}>
+                  <div className="version-item">
+                    <div className="version-info">
+                      <span className="version-label">v{history.length - vi}</span>
+                      <span className="text-muted" style={{ fontSize: '0.75rem' }}>
+                        {fmtDate(ver.savedAt)} / {ver.text.length}文字
+                        {verResults.length > 0 && (
+                          <span style={{ marginLeft: 8 }}>本番{verResults.length}回</span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="script-list-actions">
+                      <button className="btn btn-primary btn-small" onClick={() => handleRestore(s, ver)}>復元</button>
+                      <button className="btn btn-secondary btn-small" onClick={() => setView({
+                        kind: 'diff', textA: ver.text, textB: s.text,
+                        labelA: `v${history.length - vi}`, labelB: '現在版',
+                      })}>比較</button>
+                    </div>
+                  </div>
+                  {verResults.length > 0 && (
+                    <VersionResultList results={verResults} fmtDate={fmtDate} fmtTime={fmtTime} />
+                  )}
                 </div>
-                <div className="script-list-actions">
-                  <button className="btn btn-primary btn-small" onClick={() => handleRestore(s, ver)}>復元</button>
-                  <button className="btn btn-secondary btn-small" onClick={() => setView({
-                    kind: 'diff', textA: ver.text, textB: s.text,
-                    labelA: `v${history.length - vi}`, labelB: '現在版',
-                  })}>比較</button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -217,4 +254,27 @@ function downloadJson(data: unknown, filename: string): void {
     a.href = url; a.download = filename; a.click();
     URL.revokeObjectURL(url);
   } catch { /* ignore */ }
+}
+
+/** 版に紐づく本番結果の小さなリスト */
+function VersionResultList({ results, fmtDate, fmtTime }: {
+  results: TimerResult[];
+  fmtDate: (ts: number) => string;
+  fmtTime: (sec: number) => string;
+}) {
+  return (
+    <div className="version-results">
+      {results.map((r, i) => (
+        <div key={i} className="version-result-row">
+          <span className="text-muted" style={{ fontSize: '0.75rem' }}>{fmtDate(r.date)}</span>
+          <span className={r.completed ? 'timer-completed' : 'timer-incomplete'} style={{ fontSize: '0.75rem' }}>
+            {r.completed ? '完走' : '途中'}
+          </span>
+          <span style={{ fontSize: '0.75rem' }}>
+            {fmtTime(r.elapsed)} / {r.reachedIndex + 1}文 ({Math.round(r.reachRate * 100)}%)
+          </span>
+        </div>
+      ))}
+    </div>
+  );
 }

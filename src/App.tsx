@@ -429,6 +429,7 @@ function AppInner() {
           currentText={scriptText}
           onLoad={handleLoadFromManager}
           onClose={() => setShowScriptManager(false)}
+          timerResults={timerResults}
         />
       )}
 
