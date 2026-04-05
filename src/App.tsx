@@ -14,6 +14,7 @@ import TimerMode from './components/TimerMode';
 import Dashboard from './components/Dashboard';
 import { parseScript, parseChapters, SAMPLE_SCRIPT } from './utils/scriptParser';
 import { getJapaneseVoice, cancelSpeech } from './utils/speech';
+import { incrementDaily } from './utils/dailyLog';
 import {
   saveScript, loadScript,
   saveCheckedItems, loadCheckedItems,
@@ -34,6 +35,7 @@ import {
   saveRangeEnd, loadRangeEnd,
   saveDashboardStats, loadDashboardStats, type DashboardStats,
   appendTimerResult, loadTimerResults, type TimerResult,
+  loadActiveScriptId,
 } from './utils/storage';
 
 // --- ErrorBoundary ---
@@ -110,6 +112,7 @@ function AppInner() {
   const [pTimerLimitMin, setPTimerLimitMin] = useState(5);
   const pTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [timerResults, setTimerResults] = useState<TimerResult[]>(() => loadTimerResults());
+  const [activeScriptId, setActiveScriptId] = useState(() => loadActiveScriptId() || 'default');
 
   const practiceRef = useRef<PracticePanelHandle>(null);
   const recordingRef = useRef<RecordingPanelHandle>(null);
@@ -235,6 +238,7 @@ function AppInner() {
       chapterName: currentChapterName,
     };
     setTimerResults(appendTimerResult(result));
+    incrementDaily('timerCount');
   }, [sentences.length, currentScriptTitle, currentChapterName]);
 
   // プロンプタータイマー終了時に結果保存
@@ -308,6 +312,7 @@ function AppInner() {
     resetAll();
     // ダッシュボード: 練習カウント
     setDashboardStats((prev) => ({ ...prev, totalPracticeCount: prev.totalPracticeCount + 1 }));
+    incrementDaily('practiceCount');
   };
 
   const handleChangeSplitMode = (mode: SplitMode) => {
@@ -353,6 +358,7 @@ function AppInner() {
   const handleReplay = useCallback((index: number) => {
     setAutoWeakStats((prev) => bumpStat(prev, index, 'replays'));
     setDashboardStats((prev) => ({ ...prev, totalSpeakCount: prev.totalSpeakCount + 1 }));
+    incrementDaily('speakCount');
   }, []);
   const handleFastReveal = useCallback((index: number) => {
     setAutoWeakStats((prev) => bumpStat(prev, index, 'fastReveals'));
@@ -360,12 +366,14 @@ function AppInner() {
   const handleReRecord = useCallback((index: number) => {
     setAutoWeakStats((prev) => bumpStat(prev, index, 'reRecords'));
     setDashboardStats((prev) => ({ ...prev, totalRecordCount: prev.totalRecordCount + 1 }));
+    incrementDaily('recordCount');
   }, []);
 
   // 台本管理から読み込み
   const handleLoadFromManager = (text: string) => {
     handleApplyScript(text);
     setShowScriptManager(false);
+    setActiveScriptId(loadActiveScriptId() || 'default');
   };
 
   // プロンプター
@@ -538,6 +546,7 @@ function AppInner() {
             totalCount={sentences.length}
             onReRecord={handleReRecord}
             onRecordingCountChange={setRecordingCount}
+            scriptId={activeScriptId}
           />
 
           <div className="keyboard-hints">

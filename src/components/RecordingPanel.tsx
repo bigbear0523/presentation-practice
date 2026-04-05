@@ -1,35 +1,30 @@
 import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { cancelSpeech } from '../utils/speech';
+import { hasIndexedDB, saveRecording, loadRecording, deleteRecording as deleteRecordingDb, listRecordingKeys } from '../utils/recordingDb';
 
 interface Props {
   currentIndex: number;
   totalCount: number;
-  /** 苦手自動判定: 録り直し時に呼ばれる */
   onReRecord?: (index: number) => void;
-  /** 録音数が変わったときに通知（ダッシュボード用） */
   onRecordingCountChange?: (count: number) => void;
+  /** IndexedDB 用の台本ID（指定されていれば永続化する） */
+  scriptId?: string;
 }
 
 type RecState = 'idle' | 'recording' | 'playing';
 
-/** キーボード操作用にApp側から呼び出せるハンドル */
 export interface RecordingPanelHandle {
   toggleRecording: () => void;
 }
 
-/**
- * 録音練習パネル
- * - MediaRecorder API でマイク録音
- * - 文ごとに録音を保持（メモリ内、ページリロードで消える）
- * - 既存の読み上げ機能と競合しないよう、録音・再生開始時に TTS を停止
- */
 const RecordingPanel = forwardRef<RecordingPanelHandle, Props>(function RecordingPanel(
-  { currentIndex, totalCount, onReRecord, onRecordingCountChange },
+  { currentIndex, totalCount, onReRecord, onRecordingCountChange, scriptId },
   ref,
 ) {
   const [recState, setRecState] = useState<RecState>('idle');
   const [recordings, setRecordings] = useState<Map<number, Blob>>(() => new Map());
   const [micError, setMicError] = useState<string | null>(null);
+  const [dbAvailable] = useState(() => hasIndexedDB());
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -39,11 +34,24 @@ const RecordingPanel = forwardRef<RecordingPanelHandle, Props>(function Recordin
 
   const hasRecording = recordings.has(currentIndex);
 
-  // 録音数が変わったらApp側に通知
-  useEffect(() => {
-    onRecordingCountChange?.(recordings.size);
-  }, [recordings.size, onRecordingCountChange]);
+  useEffect(() => { onRecordingCountChange?.(recordings.size); }, [recordings.size, onRecordingCountChange]);
   const recordingCount = recordings.size;
+
+  // IndexedDB から録音一覧を読み込む
+  useEffect(() => {
+    if (!dbAvailable || !scriptId) return;
+    let cancelled = false;
+    listRecordingKeys(scriptId).then(async (indices) => {
+      if (cancelled) return;
+      const map = new Map<number, Blob>();
+      for (const idx of indices) {
+        const blob = await loadRecording(scriptId, idx);
+        if (blob && !cancelled) map.set(idx, blob);
+      }
+      if (!cancelled) setRecordings(map);
+    });
+    return () => { cancelled = true; };
+  }, [dbAvailable, scriptId]);
 
   useEffect(() => {
     unmountedRef.current = false;
@@ -63,22 +71,13 @@ const RecordingPanel = forwardRef<RecordingPanelHandle, Props>(function Recordin
   }, [currentIndex]);
 
   function stopRecordingInternal() {
-    if (recorderRef.current && recorderRef.current.state === 'recording') {
-      recorderRef.current.stop();
-    }
+    if (recorderRef.current && recorderRef.current.state === 'recording') recorderRef.current.stop();
     recorderRef.current = null;
   }
 
   function stopPlaybackInternal() {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-      audioRef.current = null;
-    }
-    if (objectUrlRef.current) {
-      URL.revokeObjectURL(objectUrlRef.current);
-      objectUrlRef.current = null;
-    }
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0; audioRef.current = null; }
+    if (objectUrlRef.current) { URL.revokeObjectURL(objectUrlRef.current); objectUrlRef.current = null; }
   }
 
   const startRecording = async () => {
@@ -86,37 +85,28 @@ const RecordingPanel = forwardRef<RecordingPanelHandle, Props>(function Recordin
     cancelSpeech();
     stopPlaybackInternal();
 
-    // すでに録音がある場合は「録り直し」としてカウント
-    if (recordings.has(currentIndex)) {
-      onReRecord?.(currentIndex);
-    }
+    if (recordings.has(currentIndex)) onReRecord?.(currentIndex);
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (unmountedRef.current) {
-        stream.getTracks().forEach((t) => t.stop());
-        return;
-      }
+      if (unmountedRef.current) { stream.getTracks().forEach((t) => t.stop()); return; }
 
       const recorder = new MediaRecorder(stream);
       recorderRef.current = recorder;
       chunksRef.current = [];
 
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
-      };
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
 
       const targetIndex = currentIndex;
+      const sid = scriptId;
       recorder.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
         if (unmountedRef.current) return;
         if (chunksRef.current.length > 0) {
           const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
-          setRecordings((prev) => {
-            const next = new Map(prev);
-            next.set(targetIndex, blob);
-            return next;
-          });
+          setRecordings((prev) => { const next = new Map(prev); next.set(targetIndex, blob); return next; });
+          // IndexedDB に永続化
+          if (dbAvailable && sid) saveRecording(sid, targetIndex, blob);
         }
         setRecState('idle');
       };
@@ -130,56 +120,31 @@ const RecordingPanel = forwardRef<RecordingPanelHandle, Props>(function Recordin
     }
   };
 
-  const stopRecording = () => {
-    stopRecordingInternal();
-  };
+  const stopRecording = () => { stopRecordingInternal(); };
 
   const playRecording = () => {
     const blob = recordings.get(currentIndex);
     if (!blob) return;
     cancelSpeech();
     stopPlaybackInternal();
-
     const url = URL.createObjectURL(blob);
     objectUrlRef.current = url;
     const audio = new Audio(url);
     audioRef.current = audio;
-
-    audio.onended = () => {
-      if (unmountedRef.current) return;
-      stopPlaybackInternal();
-      setRecState('idle');
-    };
-    audio.onerror = () => {
-      if (unmountedRef.current) return;
-      stopPlaybackInternal();
-      setRecState('idle');
-    };
-
-    audio.play().catch(() => {
-      if (!unmountedRef.current) {
-        stopPlaybackInternal();
-        setRecState('idle');
-      }
-    });
+    audio.onended = () => { if (!unmountedRef.current) { stopPlaybackInternal(); setRecState('idle'); } };
+    audio.onerror = () => { if (!unmountedRef.current) { stopPlaybackInternal(); setRecState('idle'); } };
+    audio.play().catch(() => { if (!unmountedRef.current) { stopPlaybackInternal(); setRecState('idle'); } });
     setRecState('playing');
   };
 
-  const stopPlayback = () => {
+  const stopPlayback = () => { stopPlaybackInternal(); setRecState('idle'); };
+
+  const handleDeleteRecording = () => {
     stopPlaybackInternal();
-    setRecState('idle');
+    setRecordings((prev) => { const next = new Map(prev); next.delete(currentIndex); return next; });
+    if (dbAvailable && scriptId) deleteRecordingDb(scriptId, currentIndex);
   };
 
-  const deleteRecording = () => {
-    stopPlaybackInternal();
-    setRecordings((prev) => {
-      const next = new Map(prev);
-      next.delete(currentIndex);
-      return next;
-    });
-  };
-
-  // --- キーボード操作ハンドル ---
   useImperativeHandle(ref, () => ({
     toggleRecording() {
       if (recState === 'recording') stopRecording();
@@ -187,10 +152,7 @@ const RecordingPanel = forwardRef<RecordingPanelHandle, Props>(function Recordin
     },
   }));
 
-  const isSupported =
-    typeof navigator !== 'undefined' &&
-    navigator.mediaDevices &&
-    typeof MediaRecorder !== 'undefined';
+  const isSupported = typeof navigator !== 'undefined' && navigator.mediaDevices && typeof MediaRecorder !== 'undefined';
 
   if (!isSupported) {
     return (
@@ -204,9 +166,8 @@ const RecordingPanel = forwardRef<RecordingPanelHandle, Props>(function Recordin
     <div className="recording-panel">
       <div className="recording-header">
         <span className="control-label">録音練習</span>
-        {recordingCount > 0 && (
-          <span className="text-muted">{recordingCount} / {totalCount} 文 録音済み</span>
-        )}
+        {recordingCount > 0 && <span className="text-muted">{recordingCount} / {totalCount} 文 録音済み</span>}
+        {dbAvailable && scriptId && <span className="text-muted" style={{ fontSize: '0.7rem' }}>自動保存</span>}
       </div>
 
       <div className="recording-controls">
@@ -215,8 +176,8 @@ const RecordingPanel = forwardRef<RecordingPanelHandle, Props>(function Recordin
             <button className="btn btn-danger btn-small" onClick={startRecording}>⏺ 録音</button>
             {hasRecording && (
               <>
-                <button className="btn btn-primary btn-small" onClick={playRecording}>▶ 録音を再生</button>
-                <button className="btn btn-secondary btn-small" onClick={deleteRecording}>削除</button>
+                <button className="btn btn-primary btn-small" onClick={playRecording}>▶ 再生</button>
+                <button className="btn btn-secondary btn-small" onClick={handleDeleteRecording}>削除</button>
               </>
             )}
           </>
