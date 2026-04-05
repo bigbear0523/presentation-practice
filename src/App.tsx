@@ -8,6 +8,7 @@ import ProgressPanel from './components/ProgressPanel';
 import RecordingPanel from './components/RecordingPanel';
 import type { RecordingPanelHandle } from './components/RecordingPanel';
 import PrompterView from './components/PrompterView';
+import type { PrompterTimer } from './components/PrompterView';
 import ScriptManager from './components/ScriptManager';
 import TimerMode from './components/TimerMode';
 import Dashboard from './components/Dashboard';
@@ -101,6 +102,12 @@ function AppInner() {
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>(() => loadDashboardStats());
   const [recordingCount, setRecordingCount] = useState(0);
   const [selectedChapter, setSelectedChapter] = useState(-1); // -1 = 全体
+  // プロンプター用本番タイマー
+  const [pTimerRunning, setPTimerRunning] = useState(false);
+  const [pTimerElapsed, setPTimerElapsed] = useState(0);
+  const [pTimerFinished, setPTimerFinished] = useState(false);
+  const [pTimerLimitMin, setPTimerLimitMin] = useState(5);
+  const pTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const practiceRef = useRef<PracticePanelHandle>(null);
   const recordingRef = useRef<RecordingPanelHandle>(null);
@@ -183,6 +190,35 @@ function AppInner() {
   useEffect(() => { saveRangeStart(rangeStart); }, [rangeStart]);
   useEffect(() => { saveRangeEnd(rangeEnd); }, [rangeEnd]);
   useEffect(() => { saveDashboardStats(dashboardStats); }, [dashboardStats]);
+
+  // プロンプター用本番タイマー
+  const pTimerLimitSec = pTimerLimitMin * 60;
+  useEffect(() => {
+    if (!pTimerRunning) {
+      if (pTimerRef.current) { clearInterval(pTimerRef.current); pTimerRef.current = null; }
+      return;
+    }
+    pTimerRef.current = setInterval(() => {
+      setPTimerElapsed((prev) => {
+        const next = prev + 1;
+        if (next >= pTimerLimitSec) { setPTimerRunning(false); setPTimerFinished(true); }
+        return next;
+      });
+    }, 1000);
+    return () => { if (pTimerRef.current) { clearInterval(pTimerRef.current); pTimerRef.current = null; } };
+  }, [pTimerRunning, pTimerLimitSec]);
+  useEffect(() => { return () => { if (pTimerRef.current) clearInterval(pTimerRef.current); }; }, []);
+
+  const prompterTimer: PrompterTimer = {
+    isRunning: pTimerRunning,
+    elapsed: pTimerElapsed,
+    limitSec: pTimerLimitSec,
+    finished: pTimerFinished,
+    limitMinutes: pTimerLimitMin,
+    onChangeLimitMinutes: setPTimerLimitMin,
+    onStart: () => { setPTimerElapsed(0); setPTimerFinished(false); setPTimerRunning(true); },
+    onStop: () => { setPTimerRunning(false); setPTimerFinished(true); },
+  };
 
   // キーボード
   useEffect(() => {
@@ -298,8 +334,9 @@ function AppInner() {
         onChangeIndex={handleChangeIndex}
         voice={voice}
         speechRate={speechRate}
-        onClose={() => setIsPrompter(false)}
+        onClose={() => { setIsPrompter(false); setPTimerRunning(false); }}
         onSpeakRef={prompterSpeakRef}
+        timer={prompterTimer}
       />
     );
   }

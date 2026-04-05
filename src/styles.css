@@ -808,6 +808,54 @@ body {
   font-weight: 500;
 }
 
+/* プロンプター内本番タイマー */
+.prompter-timer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 20px;
+  flex-wrap: wrap;
+  opacity: 0.85;
+}
+.prompter-timer-setup {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.prompter-timer-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.prompter-timer-clock {
+  font-size: 1.3rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.prompter-timer-sep {
+  opacity: 0.5;
+}
+.prompter-timer-limit {
+  font-size: 1rem;
+  opacity: 0.6;
+}
+.prompter-timer-remain {
+  font-size: 0.85rem;
+  opacity: 0.5;
+}
+.prompter-timer-pace {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.prompter-timer-result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.9rem;
+}
+
 .prompter-nav {
   display: flex;
   justify-content: center;

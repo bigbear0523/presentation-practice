@@ -1,6 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { speak, cancelSpeech, getSpeechGeneration } from '../utils/speech';
 
+/** 本番タイマー情報（App側から渡される、表示のみ） */
+export interface PrompterTimer {
+  isRunning: boolean;
+  elapsed: number;    // 秒
+  limitSec: number;
+  onStart: () => void;
+  onStop: () => void;
+  finished: boolean;
+  limitMinutes: number;
+  onChangeLimitMinutes: (m: number) => void;
+}
+
 interface Props {
   sentences: string[];
   currentIndex: number;
@@ -9,6 +21,8 @@ interface Props {
   speechRate: number;
   onClose: () => void;
   onSpeakRef?: React.MutableRefObject<(() => void) | null>;
+  /** 本番タイマー（省略時はタイマー非表示） */
+  timer?: PrompterTimer;
 }
 
 export default function PrompterView({
@@ -19,6 +33,7 @@ export default function PrompterView({
   speechRate,
   onClose,
   onSpeakRef,
+  timer,
 }: Props) {
   const [fontSize, setFontSize] = useState(48);
   const [bgMode, setBgMode] = useState<'dark' | 'light' | 'green'>('dark');
@@ -195,6 +210,48 @@ export default function PrompterView({
         </p>
       </div>
 
+      {/* 本番タイマー表示 */}
+      {timer && (
+        <div className="prompter-timer">
+          {!timer.isRunning && !timer.finished && (
+            <div className="prompter-timer-setup">
+              {[3, 5, 10, 15, 20].map((m) => (
+                <button key={m}
+                  className={`btn btn-small ${timer.limitMinutes === m ? 'active' : ''}`}
+                  style={timer.limitMinutes !== m ? { opacity: 0.5 } : {}}
+                  onClick={() => timer.onChangeLimitMinutes(m)}
+                >{m}分</button>
+              ))}
+              <button className="btn btn-primary btn-small" onClick={timer.onStart}>本番開始</button>
+            </div>
+          )}
+          {(timer.isRunning || timer.finished) && (
+            <>
+              <div className="prompter-timer-display">
+                <span className="prompter-timer-clock">{fmtTime(timer.elapsed)}</span>
+                <span className="prompter-timer-sep"> / </span>
+                <span className="prompter-timer-limit">{fmtTime(timer.limitSec)}</span>
+                <span className="prompter-timer-remain">
+                  （残り {fmtTime(Math.max(0, timer.limitSec - timer.elapsed))}）
+                </span>
+                <span className="prompter-timer-pace" style={{ color: paceColor(currentIndex, total, timer.elapsed, timer.limitSec) }}>
+                  {paceLabel(currentIndex, total, timer.elapsed, timer.limitSec)}
+                </span>
+              </div>
+              {timer.isRunning && (
+                <button className="btn btn-danger btn-small" onClick={timer.onStop}>本番終了</button>
+              )}
+              {timer.finished && (
+                <div className="prompter-timer-result">
+                  <span>完了 — {fmtTime(timer.elapsed)} / {currentIndex + 1}文</span>
+                  <button className="btn btn-primary btn-small" onClick={timer.onStart}>もう一度</button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       <div className="prompter-nav">
         <button className="btn btn-secondary" onClick={goPrev} disabled={currentIndex === 0}>
           ◀ 前へ
@@ -212,4 +269,29 @@ export default function PrompterView({
       </div>
     </div>
   );
+}
+
+// --- ヘルパー ---
+function fmtTime(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function paceLabel(idx: number, total: number, elapsed: number, limitSec: number): string {
+  if (total === 0 || limitSec === 0) return '';
+  const progress = (idx + 1) / total;
+  const timeProg = elapsed / limitSec;
+  const diff = progress - timeProg;
+  if (Math.abs(diff) < 0.05) return '予定通り';
+  if (diff > 0) return `${Math.round(diff * 100)}% 先行`;
+  return `${Math.round(Math.abs(diff) * 100)}% 遅れ`;
+}
+
+function paceColor(idx: number, total: number, elapsed: number, limitSec: number): string {
+  if (total === 0 || limitSec === 0) return 'inherit';
+  const diff = (idx + 1) / total - elapsed / limitSec;
+  if (Math.abs(diff) < 0.05) return '#30d158';
+  if (diff > 0) return '#0a84ff';
+  return '#ff453a';
 }
