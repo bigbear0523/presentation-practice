@@ -105,9 +105,13 @@ const PracticePanel = forwardRef<PracticePanelHandle, Props>(function PracticePa
         clearInterval(autoTimerRef.current);
         autoTimerRef.current = null;
       }
+      // モード切替時に pending な次文再生タイマーもクリア
+      if (pendingTimerRef.current !== null) {
+        clearTimeout(pendingTimerRef.current);
+        pendingTimerRef.current = null;
+      }
       return;
     }
-    // auto モードに切り替わったら停止フラグ解除
     stoppedRef.current = false;
     autoTimerRef.current = setInterval(() => {
       onChangeIndexRef.current(-1);

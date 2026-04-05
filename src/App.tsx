@@ -213,9 +213,9 @@ function AppInner() {
         return next;
       });
     }, 1000);
+    // cleanup: effect 再実行時 + アンマウント時の両方で確実にクリア
     return () => { if (pTimerRef.current) { clearInterval(pTimerRef.current); pTimerRef.current = null; } };
   }, [pTimerRunning, pTimerLimitSec]);
-  useEffect(() => { return () => { if (pTimerRef.current) clearInterval(pTimerRef.current); }; }, []);
 
   // 台本名と章名を取得（結果保存用）
   const currentScriptTitle = useMemo(() => {
@@ -438,6 +438,7 @@ function AppInner() {
           dashboardStats={dashboardStats}
           recordingCount={recordingCount}
           timerResults={timerResults}
+          allSentences={allSentences}
           onClose={() => setShowDashboard(false)}
         />
       )}

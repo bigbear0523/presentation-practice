@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { type SentenceStatsMap, type SentenceStats, isAutoWeak, type DashboardStats, type TimerResult } from '../utils/storage';
 import type { Chapter } from '../utils/scriptParser';
 import { getRecentDays } from '../utils/dailyLog';
@@ -12,13 +12,16 @@ interface Props {
   dashboardStats: DashboardStats;
   recordingCount: number;
   timerResults: TimerResult[];
+  allSentences: string[];
   onClose: () => void;
 }
 
 export default function Dashboard({
   totalSentences, chapters, checkedItems, weakItems, autoWeakStats,
-  dashboardStats, recordingCount, timerResults, onClose,
+  dashboardStats, recordingCount, timerResults, allSentences, onClose,
 }: Props) {
+  const [graphDays, setGraphDays] = useState(7);
+
   const weakRanking = Object.entries(autoWeakStats)
     .map(([key, stats]) => ({ index: parseInt(key, 10), stats, score: calcScore(stats) }))
     .filter((x) => x.score > 0)
@@ -33,7 +36,7 @@ export default function Dashboard({
   const completionRate = timerResults.length > 0 ? completedCount / timerResults.length : 0;
 
   // 日別データ
-  const dailyData = getRecentDays(7);
+  const dailyData = getRecentDays(graphDays);
   const maxDaily = Math.max(1, ...dailyData.map((d) => d.practiceCount + d.speakCount + d.recordCount + d.timerCount));
 
   return (
@@ -54,22 +57,30 @@ export default function Dashboard({
         <StatCard label="本番回数" value={timerResults.length} />
       </div>
 
-      {/* 日別練習グラフ */}
+      {/* 日別練習グラフ（期間切替付き） */}
       <div className="dashboard-section">
-        <h4 className="dashboard-section-title">直近7日間の練習</h4>
+        <div className="dashboard-section-header">
+          <h4 className="dashboard-section-title">日別練習</h4>
+          <div className="btn-group">
+            {[7, 14, 30].map((n) => (
+              <button key={n} className={`btn btn-mode btn-small ${graphDays === n ? 'active' : ''}`}
+                onClick={() => setGraphDays(n)}>{n}日</button>
+            ))}
+          </div>
+        </div>
         <div className="daily-graph">
           {dailyData.map((d) => {
             const total = d.practiceCount + d.speakCount + d.recordCount + d.timerCount;
             const pct = (total / maxDaily) * 100;
-            const label = d.date.slice(5); // MM-DD
+            const label = d.date.slice(5);
             return (
               <div key={d.date} className="daily-bar-col">
                 <div className="daily-bar-wrap">
                   <div className="daily-bar" style={{ height: `${Math.max(2, pct)}%` }}
                     title={`練習${d.practiceCount} 再生${d.speakCount} 録音${d.recordCount} 本番${d.timerCount}`} />
                 </div>
-                <span className="daily-bar-label">{label}</span>
-                <span className="daily-bar-count">{total}</span>
+                {graphDays <= 14 && <span className="daily-bar-label">{label}</span>}
+                <span className="daily-bar-count">{total || ''}</span>
               </div>
             );
           })}
@@ -94,8 +105,6 @@ export default function Dashboard({
                   </span>
                   <span>{fmtTime(r.elapsed)} / {fmtTime(r.limitSec)}</span>
                   <span>{r.reachedIndex + 1}/{r.totalSentences}文（{Math.round(r.reachRate * 100)}%）</span>
-                  <span className="text-muted">{r.scriptTitle}</span>
-                  {r.chapterName !== '全体' && <span className="text-muted">/ {r.chapterName}</span>}
                 </div>
               </div>
             ))}
@@ -103,7 +112,7 @@ export default function Dashboard({
         </div>
       )}
 
-      {/* 章ごとの進捗 + 苦手状況 */}
+      {/* 章ごとの進捗 + 苦手ランキング */}
       {chapters.length > 1 && (
         <div className="dashboard-section">
           <h4 className="dashboard-section-title">章ごとの進捗・苦手</h4>
@@ -114,17 +123,36 @@ export default function Dashboard({
             const autoWeak = Array.from({ length: count }, (_, k) => ch.startIndex + k)
               .filter((i) => { const s = autoWeakStats[String(i)]; return s ? isAutoWeak(s) : false; }).length;
             const pct = count > 0 ? Math.round((checked / count) * 100) : 0;
+
+            // 章内の苦手上位3文
+            const chapterWeakTop = Array.from({ length: count }, (_, k) => ch.startIndex + k)
+              .map((i) => ({ index: i, score: calcScore(autoWeakStats[String(i)] ?? { fastReveals: 0, replays: 0, reRecords: 0 }) }))
+              .filter((x) => x.score > 0)
+              .sort((a, b) => b.score - a.score)
+              .slice(0, 3);
+
             return (
-              <div key={ci} className="dashboard-chapter-row">
-                <span className="dashboard-chapter-title">{ch.title}</span>
-                <div className="progress-bar-container" style={{ flex: 1 }}>
-                  <div className="progress-bar-fill" style={{ width: `${pct}%` }} />
+              <div key={ci} className="dashboard-chapter-block">
+                <div className="dashboard-chapter-row">
+                  <span className="dashboard-chapter-title">{ch.title}</span>
+                  <div className="progress-bar-container" style={{ flex: 1 }}>
+                    <div className="progress-bar-fill" style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className="text-muted" style={{ fontSize: '0.75rem', minWidth: 100, textAlign: 'right' }}>
+                    {checked}/{count}
+                    {manualWeak > 0 && <span style={{ color: 'var(--danger)' }}> ★{manualWeak}</span>}
+                    {autoWeak > 0 && <span style={{ color: 'var(--warning)' }}> ⚡{autoWeak}</span>}
+                  </span>
                 </div>
-                <span className="text-muted" style={{ fontSize: '0.75rem', minWidth: 100, textAlign: 'right' }}>
-                  {checked}/{count}
-                  {manualWeak > 0 && <span style={{ color: 'var(--danger)' }}> ★{manualWeak}</span>}
-                  {autoWeak > 0 && <span style={{ color: 'var(--warning)' }}> ⚡{autoWeak}</span>}
-                </span>
+                {chapterWeakTop.length > 0 && (
+                  <div className="chapter-weak-ranking">
+                    {chapterWeakTop.map((item) => (
+                      <span key={item.index} className="chapter-weak-item" title={allSentences[item.index]?.slice(0, 40) ?? ''}>
+                        {item.index + 1}文目(スコア{item.score})
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -140,10 +168,13 @@ export default function Dashboard({
               <div key={item.index} className="sentence-item">
                 <span className="sentence-number">{item.index + 1}.</span>
                 <span className="sentence-preview" style={{ flex: 1 }}>
-                  スコア {item.score}
-                  {item.stats.fastReveals > 0 && ` / 速表示${item.stats.fastReveals}`}
-                  {item.stats.replays > 0 && ` / 再生${item.stats.replays}`}
-                  {item.stats.reRecords > 0 && ` / 録直${item.stats.reRecords}`}
+                  {allSentences[item.index]?.slice(0, 30) ?? ''}...
+                  <span className="text-muted" style={{ marginLeft: 8 }}>
+                    スコア{item.score}
+                    {item.stats.fastReveals > 0 && ` 速表示${item.stats.fastReveals}`}
+                    {item.stats.replays > 0 && ` 再生${item.stats.replays}`}
+                    {item.stats.reRecords > 0 && ` 録直${item.stats.reRecords}`}
+                  </span>
                 </span>
               </div>
             ))}

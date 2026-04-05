@@ -63,6 +63,7 @@ export default function ScriptManager({ currentText, onLoad, onClose }: Props) {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
+    reader.onerror = () => { setImportError('ファイルの読み込みに失敗しました'); };
     reader.onload = () => {
       try {
         const parsed = JSON.parse(reader.result as string);

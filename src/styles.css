@@ -1382,3 +1382,58 @@ body {
   font-weight: 600;
   font-size: 0.85rem;
 }
+
+/* --- ダッシュボード追加 --- */
+.dashboard-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.dashboard-chapter-block {
+  margin-bottom: 6px;
+}
+.chapter-weak-ranking {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 2px 0 2px 16px;
+}
+.chapter-weak-item {
+  font-size: 0.7rem;
+  color: var(--warning);
+  cursor: help;
+}
+
+/* --- 差分比較 強化 --- */
+.diff-stats {
+  display: flex;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+.diff-stat-add {
+  color: var(--success);
+  font-weight: 600;
+}
+.diff-stat-del {
+  color: var(--danger);
+  font-weight: 600;
+}
+.diff-line-num {
+  min-width: 28px;
+  text-align: right;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  padding-right: 6px;
+  user-select: none;
+}
+.diff-highlight {
+  background: rgba(255, 200, 0, 0.35);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+[data-theme='dark'] .diff-highlight {
+  background: rgba(255, 200, 0, 0.2);
+}

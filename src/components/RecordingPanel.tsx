@@ -127,10 +127,11 @@ const RecordingPanel = forwardRef<RecordingPanelHandle, Props>(function Recordin
   const stopRecording = () => { stopRecordingInternal(); };
 
   const playRecording = () => {
+    if (recState === 'playing') return; // 連打防止
     const blob = recordings.get(currentIndex);
     if (!blob) return;
     cancelSpeech();
-    stopPlaybackInternal();
+    stopPlaybackInternal(); // 古い URL を先に解放
     const url = URL.createObjectURL(blob);
     objectUrlRef.current = url;
     const audio = new Audio(url);
