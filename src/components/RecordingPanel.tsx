@@ -1,6 +1,10 @@
 import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { cancelSpeech } from '../utils/speech';
-import { hasIndexedDB, saveRecording, loadRecording, deleteRecording as deleteRecordingDb, listRecordingKeys } from '../utils/recordingDb';
+import {
+  hasIndexedDB, saveRecording, loadRecording,
+  deleteRecording as deleteRecordingDb, listRecordingKeys,
+  exportRecordings, importRecordings, type RecordingExportEntry,
+} from '../utils/recordingDb';
 
 interface Props {
   currentIndex: number;
@@ -152,6 +156,55 @@ const RecordingPanel = forwardRef<RecordingPanelHandle, Props>(function Recordin
     },
   }));
 
+  // --- エクスポート / インポート ---
+  const [ioStatus, setIoStatus] = useState<string | null>(null);
+  const importFileRef = useRef<HTMLInputElement>(null);
+
+  const handleExport = async () => {
+    if (!dbAvailable || !scriptId) return;
+    setIoStatus('エクスポート中...');
+    try {
+      const entries = await exportRecordings(scriptId);
+      if (entries.length === 0) { setIoStatus('エクスポートする録音がありません'); return; }
+      const json = JSON.stringify(entries, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `recordings_${scriptId}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setIoStatus(`${entries.length}件の録音をエクスポートしました`);
+    } catch { setIoStatus('エクスポートに失敗しました'); }
+  };
+
+  const handleImportClick = () => { importFileRef.current?.click(); };
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIoStatus('インポート中...');
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      if (!Array.isArray(parsed)) { setIoStatus('不正なファイル形式です'); return; }
+      const entries = parsed as RecordingExportEntry[];
+      const count = await importRecordings(entries);
+      if (count === 0) { setIoStatus('有効な録音データが見つかりませんでした'); return; }
+      // メモリ内のMapも更新
+      if (scriptId) {
+        const indices = await listRecordingKeys(scriptId);
+        const map = new Map<number, Blob>();
+        for (const idx of indices) {
+          const blob = await loadRecording(scriptId, idx);
+          if (blob) map.set(idx, blob);
+        }
+        setRecordings(map);
+      }
+      setIoStatus(`${count}件の録音をインポートしました`);
+    } catch { setIoStatus('インポートに失敗しました。ファイル形式を確認してください。'); }
+    e.target.value = '';
+  };
+
   const isSupported = typeof navigator !== 'undefined' && navigator.mediaDevices && typeof MediaRecorder !== 'undefined';
 
   if (!isSupported) {
@@ -196,6 +249,20 @@ const RecordingPanel = forwardRef<RecordingPanelHandle, Props>(function Recordin
         {recState === 'idle' && hasRecording && <span className="recording-exists">この文の録音があります</span>}
         {recState === 'idle' && !hasRecording && <span className="text-muted" style={{ fontSize: '0.8rem' }}>未録音</span>}
       </div>
+
+      {/* エクスポート / インポート */}
+      {dbAvailable && scriptId && (
+        <div className="recording-io">
+          <button className="btn btn-secondary btn-small" onClick={handleExport} disabled={recordingCount === 0}>
+            録音エクスポート
+          </button>
+          <button className="btn btn-secondary btn-small" onClick={handleImportClick}>
+            録音インポート
+          </button>
+          <input ref={importFileRef} type="file" accept=".json" style={{ display: 'none' }} onChange={handleImportFile} />
+        </div>
+      )}
+      {ioStatus && <div className="text-muted" style={{ fontSize: '0.8rem' }}>{ioStatus}</div>}
       {micError && <div className="recording-error">{micError}</div>}
     </div>
   );

@@ -657,6 +657,13 @@ body {
   font-size: 0.85rem;
 }
 
+.recording-io {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
 /* 録音中ボタンの点滅アニメーション */
 @keyframes pulse {
   0%, 100% { opacity: 1; }
