@@ -29,6 +29,8 @@ const KEYS = {
   timerResults: `${PREFIX}-timer-results`,
   // プロンプター設定
   prompterSettings: `${PREFIX}-prompter-settings`,
+  // 苦手前後幅
+  weakContextRange: `${PREFIX}-weak-context-range`,
 } as const;
 
 // --- 型定義 ---
@@ -263,6 +265,13 @@ export function appendTimerResult(result: TimerResult): TimerResult[] {
   return next;
 }
 
+// --- 苦手前後幅 ---
+export function saveWeakContextRange(n: number): void { safeSet(KEYS.weakContextRange, String(Math.max(1, Math.min(5, n)))); }
+export function loadWeakContextRange(): number {
+  const v = Number(safeGet(KEYS.weakContextRange));
+  return v >= 1 && v <= 5 ? v : 2;
+}
+
 // --- プロンプター設定 ---
 export interface PrompterSettings {
   fontSize: number;
@@ -276,12 +285,14 @@ export interface PrompterSettings {
   autoCoeff: number;
   autoMinSec: number;
   autoMaxSec: number;
+  autoMinOnStart?: boolean;
 }
 
 const PROMPTER_DEFAULTS: PrompterSettings = {
   fontSize: 48, lineHeight: 1.6, maxWidthPct: 90, bgMode: 'dark',
   toolbarCollapsed: false, tapNavEnabled: true,
   autoMode: 'fixed', autoSec: 5, autoCoeff: 120, autoMinSec: 3, autoMaxSec: 15,
+  autoMinOnStart: true,
 };
 
 export function savePrompterSettings(s: PrompterSettings): void {
@@ -306,6 +317,7 @@ export function loadPrompterSettings(): PrompterSettings {
       autoCoeff: typeof p.autoCoeff === 'number' ? p.autoCoeff : PROMPTER_DEFAULTS.autoCoeff,
       autoMinSec: typeof p.autoMinSec === 'number' ? p.autoMinSec : PROMPTER_DEFAULTS.autoMinSec,
       autoMaxSec: typeof p.autoMaxSec === 'number' ? p.autoMaxSec : PROMPTER_DEFAULTS.autoMaxSec,
+      autoMinOnStart: typeof p.autoMinOnStart === 'boolean' ? p.autoMinOnStart : PROMPTER_DEFAULTS.autoMinOnStart,
     };
   } catch { return { ...PROMPTER_DEFAULTS }; }
 }

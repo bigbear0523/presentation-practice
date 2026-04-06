@@ -18,6 +18,8 @@ interface Props {
   onPracticeChapterWeak?: (chapterIndex: number, mode: 'manual' | 'auto') => void;
   /** 文番号へ移動（ダッシュボードを閉じて練習画面に遷移） */
   onNavigate?: (index: number) => void;
+  /** 指定文の前後を練習（rangeMode='around' 相当） */
+  onPracticeAround?: (index: number) => void;
 }
 
 export default function Dashboard({
@@ -25,6 +27,7 @@ export default function Dashboard({
   dashboardStats, recordingCount, timerResults, allSentences, onClose,
   onPracticeChapterWeak,
   onNavigate,
+  onPracticeAround,
 }: Props) {
   const [graphDays, setGraphDays] = useState(7);
   const [expandedResultIdx, setExpandedResultIdx] = useState<number | null>(null);
@@ -96,6 +99,44 @@ export default function Dashboard({
           })}
         </div>
       </div>
+
+      {/* 苦手数の推移 */}
+      {(() => {
+        const hasWeakData = dailyData.some((d) => (d.manualWeakCount ?? 0) > 0 || (d.autoWeakCount ?? 0) > 0);
+        if (!hasWeakData) return null;
+        const maxWeak = Math.max(1, ...dailyData.map((d) => (d.manualWeakCount ?? 0) + (d.autoWeakCount ?? 0)));
+        return (
+          <div className="dashboard-section">
+            <h4 className="dashboard-section-title">苦手数の推移</h4>
+            <div className="daily-graph">
+              {dailyData.map((d) => {
+                const manual = d.manualWeakCount ?? 0;
+                const auto = d.autoWeakCount ?? 0;
+                const total = manual + auto;
+                const pct = (total / maxWeak) * 100;
+                const label = d.date.slice(5);
+                return (
+                  <div key={d.date} className="daily-bar-col">
+                    <div className="daily-bar-wrap">
+                      <div style={{ height: `${Math.max(2, pct)}%`, width: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}
+                        title={`手動${manual} 自動${auto}`}>
+                        {auto > 0 && <div style={{ height: `${(auto / total) * 100}%`, background: 'var(--warning)', borderRadius: '3px 3px 0 0', minHeight: 2 }} />}
+                        {manual > 0 && <div style={{ height: `${(manual / total) * 100}%`, background: 'var(--danger)', borderRadius: auto > 0 ? 0 : '3px 3px 0 0', minHeight: 2 }} />}
+                      </div>
+                    </div>
+                    {graphDays <= 14 && <span className="daily-bar-label">{label}</span>}
+                    <span className="daily-bar-count">{total || ''}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center', fontSize: '0.7rem', opacity: 0.7, marginTop: 4 }}>
+              <span><span style={{ display: 'inline-block', width: 10, height: 10, background: 'var(--danger)', borderRadius: 2 }} /> 手動苦手</span>
+              <span><span style={{ display: 'inline-block', width: 10, height: 10, background: 'var(--warning)', borderRadius: 2 }} /> 自動苦手</span>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 到達率推移 */}
       {reachTrend.length >= 2 && (
@@ -270,13 +311,179 @@ export default function Dashboard({
         </div>
       )}
 
+      {/* 詰まり箇所の自動検出 */}
+      {chapters.length > 1 && timerResults.length >= 3 && (() => {
+        const stallCount: Record<number, number> = {};
+        for (const r of timerResults.slice(0, 20)) {
+          if (!r.completed && r.totalSentences > 0) {
+            for (let ci = 0; ci < chapters.length; ci++) {
+              const ch = chapters[ci];
+              if (r.reachedIndex >= ch.startIndex && r.reachedIndex <= ch.endIndex) {
+                stallCount[ci] = (stallCount[ci] ?? 0) + 1;
+                break;
+              }
+            }
+          }
+        }
+        const entries = Object.entries(stallCount)
+          .map(([ci, count]) => ({ chapterIndex: Number(ci), count }))
+          .filter((e) => e.count >= 2)
+          .sort((a, b) => b.count - a.count);
+        if (entries.length === 0) return null;
+        return (
+          <div className="dashboard-section">
+            <h4 className="dashboard-section-title">詰まりやすい章</h4>
+            <p className="text-muted" style={{ fontSize: '0.75rem', marginBottom: 8 }}>
+              本番で途中終了しやすい章（直近20回中）
+            </p>
+            {entries.map((e) => {
+              const ch = chapters[e.chapterIndex];
+              if (!ch) return null;
+              return (
+                <div key={e.chapterIndex} className="dashboard-chapter-row" style={{ marginBottom: 6 }}>
+                  <span className="dashboard-chapter-title" style={{ minWidth: 100 }}>{ch.title}</span>
+                  <span style={{ color: 'var(--danger)', fontWeight: 600, fontSize: '0.85rem' }}>
+                    {e.count}回停止
+                  </span>
+                  {onNavigate && (
+                    <button className="btn btn-secondary btn-small" style={{ marginLeft: 8 }}
+                      onClick={() => onNavigate(ch.startIndex)}>
+                      この章を練習
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
+      {/* 章別到達率 */}
+      {chapters.length > 1 && timerResults.length > 0 && (
+        <div className="dashboard-section">
+          <h4 className="dashboard-section-title">章別の到達状況</h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {chapters.map((ch, ci) => {
+              const count = ch.endIndex - ch.startIndex + 1;
+              // 直近の本番で章のどこまで到達したか
+              const latest = timerResults[0];
+              const reached = latest ? Math.min(latest.reachedIndex, ch.endIndex) - ch.startIndex + 1 : 0;
+              const reachPct = count > 0 ? Math.round((Math.max(0, reached) / count) * 100) : 0;
+              const passed = latest && latest.reachedIndex >= ch.endIndex;
+              return (
+                <div key={ci} className="dashboard-chapter-row">
+                  <span className="dashboard-chapter-title" style={{ minWidth: 80 }}>{ch.title}</span>
+                  <div className="progress-bar-container" style={{ flex: 1 }}>
+                    <div className="progress-bar-fill" style={{
+                      width: `${reachPct}%`,
+                      background: passed ? 'var(--success)' : reachPct > 0 ? 'var(--warning)' : 'var(--border-color)',
+                    }} />
+                  </div>
+                  <span className="text-muted" style={{ fontSize: '0.75rem', minWidth: 60, textAlign: 'right' }}>
+                    {passed ? '通過' : `${reachPct}%`}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 本番回数の推移 (日別) */}
+      {timerResults.length >= 2 && (
+        <div className="dashboard-section">
+          <h4 className="dashboard-section-title">本番回数の推移（日別）</h4>
+          <div className="daily-graph">
+            {(() => {
+              const dayMap = new Map<string, number>();
+              for (const r of timerResults.slice(0, 30)) {
+                const d = new Date(r.date).toISOString().slice(5, 10);
+                dayMap.set(d, (dayMap.get(d) ?? 0) + 1);
+              }
+              const entries = Array.from(dayMap.entries()).reverse().slice(-14);
+              const maxCount = Math.max(1, ...entries.map(([, c]) => c));
+              return entries.map(([date, count]) => (
+                <div key={date} className="daily-bar-col">
+                  <div className="daily-bar-wrap">
+                    <div className="daily-bar" style={{ height: `${(count / maxCount) * 100}%`, background: 'var(--accent)' }}
+                      title={`${date}: ${count}回`} />
+                  </div>
+                  <span className="daily-bar-label">{date}</span>
+                  <span className="daily-bar-count">{count}</span>
+                </div>
+              ));
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* 文単位の詰まり検出 */}
+      {(() => {
+        // 途中終了した本番の reachedIndex を集計
+        const incomplete = timerResults.filter((r) => !r.completed && r.totalSentences > 0);
+        if (incomplete.length < 3) return null;
+        // 各文の停止回数をカウント（前後1文も加算して領域化）
+        const stopMap: Record<number, number> = {};
+        for (const r of incomplete.slice(0, 30)) {
+          const idx = r.reachedIndex;
+          for (let d = -1; d <= 1; d++) {
+            const t = idx + d;
+            if (t >= 0 && t < (r.totalSentences ?? totalSentences)) {
+              stopMap[t] = (stopMap[t] ?? 0) + 1;
+            }
+          }
+        }
+        // 2回以上停止した文をランキング
+        const stallRanking = Object.entries(stopMap)
+          .map(([idx, count]) => ({ index: Number(idx), count }))
+          .filter((e) => e.count >= 2)
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 8);
+        if (stallRanking.length === 0) return null;
+        return (
+          <div className="dashboard-section">
+            <h4 className="dashboard-section-title">本番で止まりやすい文</h4>
+            <p className="text-muted" style={{ fontSize: '0.75rem', marginBottom: 8 }}>
+              途中終了時の到達文付近を集計（直近{Math.min(incomplete.length, 30)}回）
+            </p>
+            <div className="sentence-list" style={{ maxHeight: 320 }}>
+              {stallRanking.map((item) => (
+                <div key={item.index} className="sentence-item" style={{ flexWrap: 'wrap', gap: 4 }}>
+                  <span className="sentence-number">{item.index + 1}.</span>
+                  <span className="sentence-preview" style={{ flex: 1, minWidth: 120 }}>
+                    {allSentences[item.index]?.slice(0, 35) ?? '（文データなし）'}
+                  </span>
+                  <span style={{ color: 'var(--danger)', fontWeight: 600, fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                    {item.count}回停止
+                  </span>
+                  <span style={{ display: 'inline-flex', gap: 4 }}>
+                    {onNavigate && (
+                      <button className="btn btn-secondary btn-small" onClick={() => onNavigate(item.index)}>
+                        この文へ
+                      </button>
+                    )}
+                    {onPracticeAround && (
+                      <button className="btn btn-primary btn-small" onClick={() => onPracticeAround(item.index)}>
+                        前後を練習
+                      </button>
+                    )}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* よく詰まる文ランキング */}
       {weakRanking.length > 0 && (
         <div className="dashboard-section">
           <h4 className="dashboard-section-title">よく詰まる文 TOP{weakRanking.length}</h4>
           <div className="sentence-list" style={{ maxHeight: 300 }}>
             {weakRanking.map((item) => (
-              <div key={item.index} className="sentence-item">
+              <div key={item.index} className="sentence-item"
+                style={{ cursor: onNavigate ? 'pointer' : undefined }}
+                onClick={() => onNavigate?.(item.index)}>
                 <span className="sentence-number">{item.index + 1}.</span>
                 <span className="sentence-preview" style={{ flex: 1 }}>
                   {allSentences[item.index]?.slice(0, 30) ?? ''}...

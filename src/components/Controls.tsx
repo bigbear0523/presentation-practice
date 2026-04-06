@@ -21,6 +21,14 @@ interface Props {
   autoWeakOnly: boolean;
   onToggleAutoWeakOnly: () => void;
   hasAutoWeakItems: boolean;
+  recordedOnly: boolean;
+  onToggleRecordedOnly: () => void;
+  hasRecordedItems: boolean;
+  weakContext: boolean;
+  onToggleWeakContext: () => void;
+  hasAnyWeakItems: boolean;
+  weakContextRange: number;
+  onChangeWeakContextRange: (n: number) => void;
   // 部分練習
   rangeMode: RangeMode;
   onChangeRangeMode: (mode: RangeMode) => void;
@@ -52,6 +60,14 @@ export default function Controls({
   autoWeakOnly,
   onToggleAutoWeakOnly,
   hasAutoWeakItems,
+  recordedOnly,
+  onToggleRecordedOnly,
+  hasRecordedItems,
+  weakContext,
+  onToggleWeakContext,
+  hasAnyWeakItems,
+  weakContextRange,
+  onChangeWeakContextRange,
   rangeMode,
   onChangeRangeMode,
   rangeStart,
@@ -153,8 +169,8 @@ export default function Controls({
         </div>
       )}
 
-      {/* 苦手のみ */}
-      <div className="control-group">
+      {/* 苦手・復習フィルタ */}
+      <div className="control-group" style={{ flexWrap: 'wrap', gap: 6 }}>
         <button
           className={`btn ${weakOnly ? 'btn-danger' : 'btn-secondary'}`}
           onClick={onToggleWeakOnly}
@@ -168,6 +184,28 @@ export default function Controls({
           disabled={!hasAutoWeakItems && !autoWeakOnly}
         >
           {autoWeakOnly ? '⚡ 自動苦手のみ' : '⚡ 自動苦手だけ練習'}
+        </button>
+        <button
+          className={`btn ${weakContext ? 'btn-danger' : 'btn-secondary'}`}
+          onClick={onToggleWeakContext}
+          disabled={!hasAnyWeakItems && !weakContext}
+        >
+          {weakContext ? `★±${weakContextRange} 苦手前後表示中` : `★±${weakContextRange} 苦手の前後も練習`}
+        </button>
+        {weakContext && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.8rem' }}>
+            幅:
+            <button className="btn btn-small" onClick={() => onChangeWeakContextRange(Math.max(1, weakContextRange - 1))} disabled={weakContextRange <= 1}>−</button>
+            <span style={{ minWidth: 16, textAlign: 'center' }}>{weakContextRange}</span>
+            <button className="btn btn-small" onClick={() => onChangeWeakContextRange(Math.min(5, weakContextRange + 1))} disabled={weakContextRange >= 5}>+</button>
+          </span>
+        )}
+        <button
+          className={`btn ${recordedOnly ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={onToggleRecordedOnly}
+          disabled={!hasRecordedItems && !recordedOnly}
+        >
+          {recordedOnly ? '🎤 録音済みのみ' : '🎤 録音済みだけ復習'}
         </button>
       </div>
 

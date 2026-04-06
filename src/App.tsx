@@ -15,8 +15,8 @@ import Dashboard from './components/Dashboard';
 import RecordingList from './components/RecordingList';
 import { parseScript, parseChapters, SAMPLE_SCRIPT } from './utils/scriptParser';
 import { getJapaneseVoice, cancelSpeech } from './utils/speech';
-import { incrementDaily } from './utils/dailyLog';
-import { downloadBackup, restoreBackup } from './utils/backup';
+import { incrementDaily, updateDailyWeakSnapshot } from './utils/dailyLog';
+import { downloadBackup, restoreBackup, getBackupSummary, mergeBackup } from './utils/backup';
 import { listRecordingKeys } from './utils/recordingDb';
 import {
   saveScript, loadScript,
@@ -39,6 +39,7 @@ import {
   saveDashboardStats, loadDashboardStats, type DashboardStats,
   appendTimerResult, loadTimerResults, type TimerResult,
   loadActiveScriptId, loadScripts,
+  saveWeakContextRange, loadWeakContextRange,
 } from './utils/storage';
 
 // --- ErrorBoundary ---
@@ -94,6 +95,9 @@ function AppInner() {
   const [voice, setVoice] = useState<SpeechSynthesisVoice | null>(null);
   const [weakOnly, setWeakOnly] = useState(false);
   const [autoWeakOnly, setAutoWeakOnly] = useState(false);
+  const [recordedOnly, setRecordedOnly] = useState(false);
+  const [weakContext, setWeakContext] = useState(false);
+  const [weakContextRange, setWeakContextRange] = useState(() => loadWeakContextRange());
   const [showProgress, setShowProgress] = useState(false);
   const [isPrompter, setIsPrompter] = useState(false);
   const [autoWeakStats, setAutoWeakStats] = useState<SentenceStatsMap>(() => loadAutoWeakStats());
@@ -131,12 +135,10 @@ function AppInner() {
     saveDarkMode(darkMode);
   }, [darkMode]);
 
-  // プロンプター表示時に録音済みインデックスを取得
+  // 録音済みインデックスを取得（プロンプター・録音済みフィルタ用）
   useEffect(() => {
-    if (isPrompter) {
-      listRecordingKeys(activeScriptId).then(setPrompterRecordedIndices).catch(() => {});
-    }
-  }, [isPrompter, activeScriptId]);
+    listRecordingKeys(activeScriptId).then(setPrompterRecordedIndices).catch(() => {});
+  }, [activeScriptId, recordingCount]);
 
   const allSentences = useMemo(() => parseScript(scriptText, splitMode), [scriptText, splitMode]);
 
@@ -172,19 +174,40 @@ function AppInner() {
   }, [chapterSentences, rangeMode, rangeStart, rangeEnd, rangeAnchor]);
 
   const sentences = useMemo(() => {
+    const offset = allSentences.indexOf(rangeSentences[0]);
+    if (weakContext) {
+      // 苦手文の前後N文を含めたフィルタ
+      const r = weakContextRange;
+      const weakIndices = new Set<number>();
+      rangeSentences.forEach((_, i) => {
+        const gi = offset + i;
+        const isW = weakItems.includes(gi);
+        const s = autoWeakStats[String(gi)];
+        const isAW = s ? isAutoWeak(s) : false;
+        if (isW || isAW) {
+          for (let d = -r; d <= r; d++) {
+            const ti = i + d;
+            if (ti >= 0 && ti < rangeSentences.length) weakIndices.add(ti);
+          }
+        }
+      });
+      if (weakIndices.size === 0) return rangeSentences;
+      return rangeSentences.filter((_, i) => weakIndices.has(i));
+    }
     if (weakOnly) {
-      const offset = allSentences.indexOf(rangeSentences[0]);
       return rangeSentences.filter((_, i) => weakItems.includes(offset + i));
     }
     if (autoWeakOnly) {
-      const offset = allSentences.indexOf(rangeSentences[0]);
       return rangeSentences.filter((_, i) => {
         const s = autoWeakStats[String(offset + i)];
         return s ? isAutoWeak(s) : false;
       });
     }
+    if (recordedOnly) {
+      return rangeSentences.filter((_, i) => prompterRecordedIndices.includes(offset + i));
+    }
     return rangeSentences;
-  }, [rangeSentences, allSentences, weakOnly, autoWeakOnly, weakItems, autoWeakStats]);
+  }, [rangeSentences, allSentences, weakOnly, autoWeakOnly, weakItems, autoWeakStats, recordedOnly, prompterRecordedIndices, weakContext, weakContextRange]);
 
   const autoWeakCount = useMemo(() => {
     return allSentences.filter((_, i) => {
@@ -208,6 +231,16 @@ function AppInner() {
   useEffect(() => { saveRangeMode(rangeMode); }, [rangeMode]);
   useEffect(() => { saveRangeStart(rangeStart); }, [rangeStart]);
   useEffect(() => { saveRangeEnd(rangeEnd); }, [rangeEnd]);
+  useEffect(() => { saveWeakContextRange(weakContextRange); }, [weakContextRange]);
+
+  // 苦手数スナップショットの保存
+  useEffect(() => {
+    const awc = allSentences.filter((_, i) => {
+      const s = autoWeakStats[String(i)];
+      return s ? isAutoWeak(s) : false;
+    }).length;
+    updateDailyWeakSnapshot(weakItems.length, awc);
+  }, [weakItems, autoWeakStats, allSentences]);
   useEffect(() => { saveDashboardStats(dashboardStats); }, [dashboardStats]);
 
   // プロンプター用本番タイマー
@@ -333,6 +366,7 @@ function AppInner() {
   const resetAll = () => {
     setCurrentIndex(0); setCheckedItems([]); setWeakItems([]);
     setWeakOnly(false); setAutoWeakOnly(false); setAutoWeakStats({});
+    setRecordedOnly(false); setWeakContext(false);
     setRangeMode('all'); setRangeStart(0); setRangeEnd(0); setRangeAnchor(0);
     setSelectedChapter(-1);
   };
@@ -376,14 +410,26 @@ function AppInner() {
     setWeakItems((prev) => prev.includes(realIndex) ? prev.filter((i) => i !== realIndex) : [...prev, realIndex]);
   };
 
+  const clearFilters = () => { setWeakOnly(false); setAutoWeakOnly(false); setRecordedOnly(false); setWeakContext(false); };
+
   const handleToggleWeakOnly = () => {
-    cancelSpeech(); setAutoWeakOnly(false);
+    cancelSpeech(); clearFilters();
     setWeakOnly((prev) => !prev); setCurrentIndex(0);
   };
 
   const handleToggleAutoWeakOnly = () => {
-    cancelSpeech(); setWeakOnly(false);
+    cancelSpeech(); clearFilters();
     setAutoWeakOnly((prev) => !prev); setCurrentIndex(0);
+  };
+
+  const handleToggleRecordedOnly = () => {
+    cancelSpeech(); clearFilters();
+    setRecordedOnly((prev) => !prev); setCurrentIndex(0);
+  };
+
+  const handleToggleWeakContext = () => {
+    cancelSpeech(); clearFilters();
+    setWeakContext((prev) => !prev); setCurrentIndex(0);
   };
 
   const handleReplay = useCallback((index: number) => {
@@ -446,6 +492,7 @@ function AppInner() {
         weakItems={weakItems}
         recordedIndices={prompterRecordedIndices}
         currentGlobalIndex={pGlobalIndex >= 0 ? pGlobalIndex : undefined}
+        autoWeakStats={autoWeakStats}
       />
     );
   }
@@ -501,6 +548,14 @@ function AppInner() {
           onClose={() => setShowDashboard(false)}
           onPracticeChapterWeak={handlePracticeChapterWeak}
           onNavigate={(i) => { setCurrentIndex(i); setShowDashboard(false); }}
+          onPracticeAround={(i) => {
+            cancelSpeech();
+            clearFilters();
+            setRangeAnchor(i);
+            setRangeMode('around');
+            setCurrentIndex(0);
+            setShowDashboard(false);
+          }}
         />
       )}
 
@@ -572,6 +627,14 @@ function AppInner() {
             autoWeakOnly={autoWeakOnly}
             onToggleAutoWeakOnly={handleToggleAutoWeakOnly}
             hasAutoWeakItems={autoWeakCount > 0}
+            recordedOnly={recordedOnly}
+            onToggleRecordedOnly={handleToggleRecordedOnly}
+            hasRecordedItems={prompterRecordedIndices.length > 0}
+            weakContext={weakContext}
+            onToggleWeakContext={handleToggleWeakContext}
+            hasAnyWeakItems={weakItems.length > 0 || autoWeakCount > 0}
+            weakContextRange={weakContextRange}
+            onChangeWeakContextRange={setWeakContextRange}
             rangeMode={rangeMode}
             onChangeRangeMode={(m) => { setRangeAnchor(currentIndex); setRangeMode(m); setCurrentIndex(0); }}
             rangeStart={rangeStart}
@@ -650,10 +713,18 @@ function AppInner() {
           <input ref={backupFileRef} type="file" accept=".json" style={{ display: 'none' }} onChange={async (e) => {
             const file = e.target.files?.[0];
             if (!file) return;
-            if (!confirm('現在のデータにバックアップの内容を上書き復元します。よろしいですか？')) { e.target.value = ''; return; }
-            setBackupStatus('復元中...');
+            setBackupStatus('ファイル確認中...');
             try {
-              const msg = await restoreBackup(file);
+              const summary = await getBackupSummary(file);
+              const mode = prompt(
+                `バックアップ内容:\n${summary}\n\n復元モードを選んでください:\n1 = 置換復元（既存データを上書き）\n2 = マージ復元（既存データに追加）\n\n番号を入力:`,
+                '2',
+              );
+              if (!mode || (mode !== '1' && mode !== '2')) {
+                e.target.value = ''; setBackupStatus(null); return;
+              }
+              setBackupStatus(mode === '1' ? '置換復元中...' : 'マージ復元中...');
+              const msg = mode === '1' ? await restoreBackup(file) : await mergeBackup(file);
               setBackupStatus(msg + '（リロードすると反映されます）');
             } catch { setBackupStatus('復元に失敗しました'); }
             e.target.value = '';

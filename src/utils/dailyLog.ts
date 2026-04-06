@@ -11,6 +11,10 @@ export interface DailyEntry {
   speakCount: number;
   recordCount: number;
   timerCount: number;
+  /** スナップショット: その日の手動苦手数 */
+  manualWeakCount?: number;
+  /** スナップショット: その日の自動苦手数 */
+  autoWeakCount?: number;
 }
 
 function today(): string {
@@ -44,6 +48,20 @@ export function incrementDaily(field: keyof Omit<DailyEntry, 'date'>): void {
   const log = loadLog();
   const { entry, index } = getOrCreateToday(log);
   entry[field]++;
+  if (index >= 0) {
+    log[index] = entry;
+  } else {
+    log.unshift(entry);
+  }
+  saveLog(log);
+}
+
+/** その日の苦手数スナップショットを更新 */
+export function updateDailyWeakSnapshot(manualCount: number, autoCount: number): void {
+  const log = loadLog();
+  const { entry, index } = getOrCreateToday(log);
+  entry.manualWeakCount = manualCount;
+  entry.autoWeakCount = autoCount;
   if (index >= 0) {
     log[index] = entry;
   } else {

@@ -1081,6 +1081,10 @@ body {
   background: rgba(0, 113, 227, 0.2);
   color: #0a84ff;
 }
+.prompter-mark-auto-weak {
+  background: rgba(255, 214, 10, 0.2);
+  color: #ffd60a;
+}
 
 /* プロンプター追加レスポンシブは上の768pxブロックに統合済み */
 

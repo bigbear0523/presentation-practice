@@ -18,6 +18,15 @@ export interface PrompterTimer {
 type BgMode = 'dark' | 'light' | 'green' | 'sepia' | 'blue' | 'highcontrast';
 type AutoMode = 'fixed' | 'adaptive';
 
+/** 設定プリセット */
+interface Preset { label: string; fontSize: number; lineHeight: number; maxWidthPct: number; bgMode: BgMode; }
+const PRESETS: Preset[] = [
+  { label: '標準', fontSize: 48, lineHeight: 1.6, maxWidthPct: 90, bgMode: 'dark' },
+  { label: '大会場', fontSize: 72, lineHeight: 1.8, maxWidthPct: 80, bgMode: 'dark' },
+  { label: '読みやすい', fontSize: 56, lineHeight: 2.0, maxWidthPct: 70, bgMode: 'sepia' },
+  { label: '高コントラスト', fontSize: 64, lineHeight: 1.8, maxWidthPct: 85, bgMode: 'highcontrast' },
+];
+
 interface Props {
   sentences: string[];
   currentIndex: number;
@@ -42,6 +51,8 @@ interface Props {
   recordedIndices?: number[];
   /** 現在文のallSentences上のインデックス */
   currentGlobalIndex?: number;
+  /** 自動苦手スタッツ (allSentences基準) */
+  autoWeakStats?: Record<string, { fastReveals: number; replays: number; reRecords: number }>;
 }
 
 const BG_STYLES: Record<BgMode, React.CSSProperties> = {
@@ -76,9 +87,11 @@ export default function PrompterView({
   weakItems,
   recordedIndices,
   currentGlobalIndex,
+  autoWeakStats,
 }: Props) {
   // --- 設定の復元 ---
   const [saved] = useState<PrompterSettings>(() => loadPrompterSettings());
+  const [autoMinOnStart, setAutoMinOnStart] = useState(saved.autoMinOnStart ?? true);
 
   // --- Phase 1: UI state ---
   const [fontSize, setFontSize] = useState(saved.fontSize);
@@ -103,9 +116,19 @@ export default function PrompterView({
     savePrompterSettings({
       fontSize, lineHeight, maxWidthPct, bgMode, toolbarCollapsed,
       tapNavEnabled, autoMode, autoSec, autoCoeff, autoMinSec, autoMaxSec,
+      autoMinOnStart,
     });
   }, [fontSize, lineHeight, maxWidthPct, bgMode, toolbarCollapsed,
-      tapNavEnabled, autoMode, autoSec, autoCoeff, autoMinSec, autoMaxSec]);
+      tapNavEnabled, autoMode, autoSec, autoCoeff, autoMinSec, autoMaxSec, autoMinOnStart]);
+
+  // --- 本番開始時にツールバー自動最小化 ---
+  const prevTimerRunning = useRef(false);
+  useEffect(() => {
+    if (timer?.isRunning && !prevTimerRunning.current && autoMinOnStart) {
+      setToolbarCollapsed(true);
+    }
+    prevTimerRunning.current = !!timer?.isRunning;
+  }, [timer?.isRunning, autoMinOnStart]);
 
   const [isSpeaking, setIsSpeaking] = useState(false);
 
@@ -239,6 +262,10 @@ export default function PrompterView({
   // --- Phase 5: marks ---
   const isWeak = weakItems != null && currentGlobalIndex != null && weakItems.includes(currentGlobalIndex);
   const isRecorded = recordedIndices != null && currentGlobalIndex != null && recordedIndices.includes(currentGlobalIndex);
+  const isAutoWeak = autoWeakStats != null && currentGlobalIndex != null && (() => {
+    const s = autoWeakStats[String(currentGlobalIndex)];
+    return s ? (s.fastReveals >= 2 || s.replays >= 3 || s.reRecords >= 2) : false;
+  })();
 
   // --- Phase 4: remaining time color ---
   const remainColor = (elapsed: number, limitSec: number): string => {
@@ -316,6 +343,20 @@ export default function PrompterView({
                 タップ移動
               </label>
 
+              {/* プリセット */}
+              <div className="btn-group">
+                {PRESETS.map((p) => (
+                  <button key={p.label} className="btn btn-small"
+                    style={{ opacity: 0.7 }}
+                    onClick={() => {
+                      setFontSize(p.fontSize); setLineHeight(p.lineHeight);
+                      setMaxWidthPct(p.maxWidthPct); setBgMode(p.bgMode);
+                    }}>
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+
               {/* 自動送り */}
               <label className="prompter-label">
                 <input type="checkbox" checked={autoPlay}
@@ -355,6 +396,12 @@ export default function PrompterView({
                 </div>
               )}
 
+              <label className="prompter-label">
+                <input type="checkbox" checked={autoMinOnStart}
+                  onChange={(e) => setAutoMinOnStart(e.target.checked)} />
+                本番時自動最小化
+              </label>
+
               <button className="btn btn-small prompter-collapse-btn" onClick={() => setToolbarCollapsed(true)}>
                 ▲ 最小化
               </button>
@@ -392,9 +439,10 @@ export default function PrompterView({
       )}
 
       {/* マーク表示 (Phase 5) */}
-      {(isWeak || isRecorded) && (
+      {(isWeak || isAutoWeak || isRecorded) && (
         <div className="prompter-marks">
           {isWeak && <span className="prompter-mark prompter-mark-weak">★ 苦手</span>}
+          {isAutoWeak && !isWeak && <span className="prompter-mark prompter-mark-auto-weak">⚡ 自動苦手</span>}
           {isRecorded && <span className="prompter-mark prompter-mark-recorded">🎤 録音済</span>}
         </div>
       )}
