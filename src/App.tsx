@@ -117,6 +117,7 @@ function AppInner() {
   const pTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [timerResults, setTimerResults] = useState<TimerResult[]>(() => loadTimerResults());
   const [activeScriptId, setActiveScriptId] = useState(() => loadActiveScriptId() || 'default');
+  const [prompterRecordedIndices, setPrompterRecordedIndices] = useState<number[]>([]);
   const [backupStatus, setBackupStatus] = useState<string | null>(null);
   const backupFileRef = useRef<HTMLInputElement>(null);
 
@@ -129,6 +130,13 @@ function AppInner() {
     document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
     saveDarkMode(darkMode);
   }, [darkMode]);
+
+  // プロンプター表示時に録音済みインデックスを取得
+  useEffect(() => {
+    if (isPrompter) {
+      listRecordingKeys(activeScriptId).then(setPrompterRecordedIndices).catch(() => {});
+    }
+  }, [isPrompter, activeScriptId]);
 
   const allSentences = useMemo(() => parseScript(scriptText, splitMode), [scriptText, splitMode]);
 
@@ -412,6 +420,15 @@ function AppInner() {
 
   // プロンプター
   if (isPrompter && sentences.length > 0) {
+    // 章内進捗の計算
+    const pChapterTotal = selectedChapter >= 0 && selectedChapter < chapters.length
+      ? chapters[selectedChapter].endIndex - chapters[selectedChapter].startIndex + 1
+      : undefined;
+    const pChapterCurrent = selectedChapter >= 0 && selectedChapter < chapters.length
+      ? currentIndex
+      : undefined;
+    // 現在文のallSentences上のインデックス
+    const pGlobalIndex = allSentences.indexOf(sentences[currentIndex] ?? '');
     return (
       <PrompterView
         sentences={sentences}
@@ -422,6 +439,13 @@ function AppInner() {
         onClose={() => { setIsPrompter(false); setPTimerRunning(false); }}
         onSpeakRef={prompterSpeakRef}
         timer={prompterTimer}
+        chapterName={currentChapterName}
+        chapterTotal={pChapterTotal}
+        chapterCurrent={pChapterCurrent}
+        allSentencesCount={allSentences.length}
+        weakItems={weakItems}
+        recordedIndices={prompterRecordedIndices}
+        currentGlobalIndex={pGlobalIndex >= 0 ? pGlobalIndex : undefined}
       />
     );
   }

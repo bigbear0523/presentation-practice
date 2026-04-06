@@ -687,6 +687,15 @@ body {
     gap: 8px;
     padding: 12px;
   }
+  .prompter-info-bar {
+    gap: 8px;
+    padding: 2px 12px;
+    font-size: 0.7rem;
+  }
+  .prompter-auto-settings {
+    gap: 6px;
+    width: 100%;
+  }
 
   /* 差分ビュー */
   .diff-body {
@@ -1002,6 +1011,75 @@ body {
   justify-content: center;
   gap: 12px;
   padding: 16px;
+}
+
+/* ツールバー最小化 */
+.prompter-toolbar.collapsed .prompter-settings {
+  display: none;
+}
+.prompter-collapse-btn {
+  opacity: 0.7;
+  font-size: 0.75rem !important;
+}
+
+/* 背景色ボタングループ */
+.prompter-bg-group {
+  flex-wrap: wrap;
+}
+
+/* 自動送り設定 */
+.prompter-auto-settings {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.prompter-auto-bounds {
+  font-size: 0.75rem;
+  opacity: 0.6;
+}
+.prompter-auto-status {
+  font-size: 0.75rem;
+  font-weight: 600;
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
+/* 情報バー */
+.prompter-info-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 4px 20px;
+  font-size: 0.78rem;
+  opacity: 0.65;
+  flex-wrap: wrap;
+}
+.prompter-info-item {
+  white-space: nowrap;
+}
+
+/* マーク表示 */
+.prompter-marks {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 2px 20px;
+}
+.prompter-mark {
+  font-size: 0.7rem;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-weight: 600;
+}
+.prompter-mark-weak {
+  background: rgba(255, 149, 0, 0.2);
+  color: #ff9500;
+}
+.prompter-mark-recorded {
+  background: rgba(0, 113, 227, 0.2);
+  color: #0a84ff;
 }
 
 /* プロンプター追加レスポンシブは上の768pxブロックに統合済み */

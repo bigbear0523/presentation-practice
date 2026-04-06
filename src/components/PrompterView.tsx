@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { speak, cancelSpeech, getSpeechGeneration } from '../utils/speech';
 
 /** 本番タイマー情報（App側から渡される、表示のみ） */
@@ -13,6 +13,9 @@ export interface PrompterTimer {
   onChangeLimitMinutes: (m: number) => void;
 }
 
+type BgMode = 'dark' | 'light' | 'green' | 'sepia' | 'blue' | 'highcontrast';
+type AutoMode = 'fixed' | 'adaptive';
+
 interface Props {
   sentences: string[];
   currentIndex: number;
@@ -23,7 +26,37 @@ interface Props {
   onSpeakRef?: React.MutableRefObject<(() => void) | null>;
   /** 本番タイマー（省略時はタイマー非表示） */
   timer?: PrompterTimer;
+  /** 章名 */
+  chapterName?: string;
+  /** 章内の文数 */
+  chapterTotal?: number;
+  /** 章内の現在位置 (0-based) */
+  chapterCurrent?: number;
+  /** 全体の文数 */
+  allSentencesCount?: number;
+  /** 苦手マークのインデックス配列 (allSentences基準) */
+  weakItems?: number[];
+  /** 録音済みインデックス配列 (allSentences基準) */
+  recordedIndices?: number[];
+  /** 現在文のallSentences上のインデックス */
+  currentGlobalIndex?: number;
 }
+
+const BG_STYLES: Record<BgMode, React.CSSProperties> = {
+  dark:         { background: '#111', color: '#fff' },
+  light:        { background: '#fff', color: '#111' },
+  green:        { background: '#003300', color: '#0f0' },
+  sepia:        { background: '#f4ecd8', color: '#3e2723' },
+  blue:         { background: '#0d1b2a', color: '#e0e0ff' },
+  highcontrast: { background: '#000', color: '#ff0' },
+};
+
+const BG_LABELS: Record<BgMode, string> = {
+  dark: '黒', light: '白', green: '緑',
+  sepia: 'セピア', blue: '青', highcontrast: '高コン',
+};
+
+const BG_MODES: BgMode[] = ['dark', 'light', 'green', 'sepia', 'blue', 'highcontrast'];
 
 export default function PrompterView({
   sentences,
@@ -34,14 +67,35 @@ export default function PrompterView({
   onClose,
   onSpeakRef,
   timer,
+  chapterName,
+  chapterTotal,
+  chapterCurrent,
+  allSentencesCount,
+  weakItems,
+  recordedIndices,
+  currentGlobalIndex,
 }: Props) {
+  // --- Phase 1: UI state ---
   const [fontSize, setFontSize] = useState(48);
-  const [bgMode, setBgMode] = useState<'dark' | 'light' | 'green'>('dark');
+  const [lineHeight, setLineHeight] = useState(1.6);
+  const [maxWidthPct, setMaxWidthPct] = useState(90);
+  const [bgMode, setBgMode] = useState<BgMode>('dark');
+  const [toolbarCollapsed, setToolbarCollapsed] = useState(false);
+
+  // --- Phase 2: Tap navigation ---
+  const [tapNavEnabled, setTapNavEnabled] = useState(true);
+
+  // --- Phase 3: Auto-advance ---
   const [autoPlay, setAutoPlay] = useState(false);
   const [autoSec, setAutoSec] = useState(5);
+  const [autoMode, setAutoMode] = useState<AutoMode>('fixed');
+  const [autoCoeff, setAutoCoeff] = useState(120);
+  const [autoMinSec, setAutoMinSec] = useState(3);
+  const [autoMaxSec, setAutoMaxSec] = useState(15);
+
   const [isSpeaking, setIsSpeaking] = useState(false);
 
-  const autoTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const autoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unmountedRef = useRef(false);
   /**
    * 手動停止フラグ。stopAll() で true になり、
@@ -52,6 +106,13 @@ export default function PrompterView({
 
   const total = sentences.length;
   const currentSentence = sentences[currentIndex] ?? '';
+
+  // --- Auto delay calculation ---
+  const getAutoDelay = useCallback(() => {
+    if (autoMode === 'fixed') return autoSec * 1000;
+    const ms = currentSentence.length * autoCoeff;
+    return Math.max(autoMinSec * 1000, Math.min(autoMaxSec * 1000, ms));
+  }, [autoMode, autoSec, autoCoeff, autoMinSec, autoMaxSec, currentSentence.length]);
 
   /** 全停止: 読み上げキャンセル + 自動送り停止 + 停止フラグ ON */
   const stopAll = () => {
@@ -92,22 +153,22 @@ export default function PrompterView({
     return () => { if (onSpeakRef) onSpeakRef.current = null; };
   });
 
-  // 自動送りタイマー
+  // --- Phase 3: 自動送りタイマー (setTimeout化) ---
   useEffect(() => {
     if (!autoPlay) {
-      if (autoTimerRef.current) { clearInterval(autoTimerRef.current); autoTimerRef.current = null; }
+      if (autoTimerRef.current) { clearTimeout(autoTimerRef.current); autoTimerRef.current = null; }
       return;
     }
     // autoPlay ON → 停止フラグ解除
     stoppedRef.current = false;
-    autoTimerRef.current = setInterval(() => {
-      if (stoppedRef.current) return; // 念のため
+    autoTimerRef.current = setTimeout(() => {
+      if (stoppedRef.current) return;
       onChangeIndex(-1);
-    }, autoSec * 1000);
+    }, getAutoDelay());
     return () => {
-      if (autoTimerRef.current) { clearInterval(autoTimerRef.current); autoTimerRef.current = null; }
+      if (autoTimerRef.current) { clearTimeout(autoTimerRef.current); autoTimerRef.current = null; }
     };
-  }, [autoPlay, autoSec, onChangeIndex]);
+  }, [autoPlay, currentIndex, getAutoDelay, onChangeIndex]);
 
   // 自動送りで文が変わったら読み上げ
   useEffect(() => {
@@ -140,24 +201,51 @@ export default function PrompterView({
     return () => {
       unmountedRef.current = true;
       cancelSpeech();
-      if (autoTimerRef.current) { clearInterval(autoTimerRef.current); autoTimerRef.current = null; }
+      if (autoTimerRef.current) { clearTimeout(autoTimerRef.current); autoTimerRef.current = null; }
     };
   }, []);
 
   const goPrev = () => { stopAll(); if (currentIndex > 0) onChangeIndex(currentIndex - 1); };
   const goNext = () => { stopAll(); if (currentIndex < total - 1) onChangeIndex(currentIndex + 1); };
 
-  const bgStyles: Record<string, React.CSSProperties> = {
-    dark:  { background: '#111', color: '#fff' },
-    light: { background: '#fff', color: '#111' },
-    green: { background: '#003300', color: '#0f0' },
+  // --- Phase 2: Body click handler ---
+  const handleBodyClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!tapNavEnabled) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    if (x < rect.width / 2) {
+      goPrev();
+    } else {
+      goNext();
+    }
   };
 
   const progressPct = total > 0 ? ((currentIndex + 1) / total) * 100 : 0;
 
+  // --- Phase 5: marks ---
+  const isWeak = weakItems != null && currentGlobalIndex != null && weakItems.includes(currentGlobalIndex);
+  const isRecorded = recordedIndices != null && currentGlobalIndex != null && recordedIndices.includes(currentGlobalIndex);
+
+  // --- Phase 4: remaining time color ---
+  const remainColor = (elapsed: number, limitSec: number): string => {
+    if (limitSec === 0) return 'inherit';
+    const ratio = (limitSec - elapsed) / limitSec;
+    if (ratio > 0.3) return '#30d158';
+    if (ratio > 0.1) return '#ffd60a';
+    return '#ff453a';
+  };
+
+  const estimatedFinishSec = (idx: number, ttl: number, elapsed: number): number => {
+    if (idx === 0 || elapsed === 0) return 0;
+    return Math.round((elapsed / (idx + 1)) * ttl);
+  };
+
+  const autoDelaySec = Math.round(getAutoDelay() / 1000 * 10) / 10;
+
   return (
-    <div className="prompter-overlay" style={bgStyles[bgMode]}>
-      <div className="prompter-toolbar">
+    <div className="prompter-overlay" style={BG_STYLES[bgMode]}>
+      {/* ツールバー */}
+      <div className={`prompter-toolbar ${toolbarCollapsed ? 'collapsed' : ''}`}>
         <button className="btn btn-secondary btn-small" onClick={() => { stopAll(); onClose(); }}>
           通常モードに戻る
         </button>
@@ -166,46 +254,140 @@ export default function PrompterView({
 
         {isSpeaking && <span className="status-badge status-speaking">読み上げ中</span>}
 
-        <div className="prompter-settings">
-          <label className="prompter-label">
-            文字: {fontSize}px
-            <input type="range" min={24} max={96} value={fontSize}
-              onChange={(e) => setFontSize(Number(e.target.value))} />
-          </label>
+        {toolbarCollapsed ? (
+          <button className="btn btn-small prompter-collapse-btn" onClick={() => setToolbarCollapsed(false)}>
+            設定 ▼
+          </button>
+        ) : (
+          <>
+            <div className="prompter-settings">
+              {/* 文字サイズ */}
+              <label className="prompter-label">
+                文字: {fontSize}px
+                <input type="range" min={16} max={120} value={fontSize}
+                  onChange={(e) => setFontSize(Number(e.target.value))} />
+              </label>
 
-          <div className="btn-group">
-            {(['dark', 'light', 'green'] as const).map((m) => (
-              <button key={m}
-                className={`btn btn-small ${bgMode === m ? 'active' : ''}`}
-                style={bgMode !== m ? { opacity: 0.6 } : {}}
-                onClick={() => setBgMode(m)}
-              >
-                {m === 'dark' ? '黒' : m === 'light' ? '白' : '緑'}
+              {/* 行間 */}
+              <label className="prompter-label">
+                行間: {lineHeight}
+                <input type="range" min={1.2} max={2.4} step={0.2} value={lineHeight}
+                  onChange={(e) => setLineHeight(Number(e.target.value))} />
+              </label>
+
+              {/* 表示幅 */}
+              <label className="prompter-label">
+                幅: {maxWidthPct}%
+                <input type="range" min={40} max={100} step={5} value={maxWidthPct}
+                  onChange={(e) => setMaxWidthPct(Number(e.target.value))} />
+              </label>
+
+              {/* 背景色 */}
+              <div className="btn-group prompter-bg-group">
+                {BG_MODES.map((m) => (
+                  <button key={m}
+                    className={`btn btn-small ${bgMode === m ? 'active' : ''}`}
+                    style={bgMode !== m ? { opacity: 0.6 } : {}}
+                    onClick={() => setBgMode(m)}
+                  >
+                    {BG_LABELS[m]}
+                  </button>
+                ))}
+              </div>
+
+              {/* タップ操作 */}
+              <label className="prompter-label">
+                <input type="checkbox" checked={tapNavEnabled}
+                  onChange={(e) => setTapNavEnabled(e.target.checked)} />
+                タップ移動
+              </label>
+
+              {/* 自動送り */}
+              <label className="prompter-label">
+                <input type="checkbox" checked={autoPlay}
+                  onChange={(e) => {
+                    if (!e.target.checked) { stopAll(); }
+                    else { stoppedRef.current = false; setAutoPlay(true); }
+                  }} />
+                自動送り
+              </label>
+              {autoPlay && (
+                <div className="prompter-auto-settings">
+                  <div className="btn-group">
+                    <button className={`btn btn-small ${autoMode === 'fixed' ? 'active' : ''}`}
+                      onClick={() => setAutoMode('fixed')}>固定</button>
+                    <button className={`btn btn-small ${autoMode === 'adaptive' ? 'active' : ''}`}
+                      onClick={() => setAutoMode('adaptive')}>文字数</button>
+                  </div>
+                  {autoMode === 'fixed' ? (
+                    <label className="prompter-label">
+                      {autoSec}秒
+                      <input type="range" min={2} max={15} value={autoSec}
+                        onChange={(e) => setAutoSec(Number(e.target.value))} />
+                    </label>
+                  ) : (
+                    <>
+                      <label className="prompter-label">
+                        {autoCoeff}ms/字
+                        <input type="range" min={50} max={300} step={10} value={autoCoeff}
+                          onChange={(e) => setAutoCoeff(Number(e.target.value))} />
+                      </label>
+                      <span className="prompter-auto-bounds">
+                        ({autoMinSec}〜{autoMaxSec}秒)
+                      </span>
+                    </>
+                  )}
+                  <span className="prompter-auto-status">次: {autoDelaySec}秒</span>
+                </div>
+              )}
+
+              <button className="btn btn-small prompter-collapse-btn" onClick={() => setToolbarCollapsed(true)}>
+                ▲ 最小化
               </button>
-            ))}
-          </div>
-
-          <label className="prompter-label">
-            <input type="checkbox" checked={autoPlay}
-              onChange={(e) => {
-                if (!e.target.checked) { stopAll(); }
-                else { stoppedRef.current = false; setAutoPlay(true); }
-              }} />
-            自動送り {autoSec}秒
-          </label>
-          {autoPlay && (
-            <input type="range" min={2} max={15} value={autoSec}
-              onChange={(e) => setAutoSec(Number(e.target.value))} />
-          )}
-        </div>
+            </div>
+          </>
+        )}
       </div>
 
+      {/* プログレスバー */}
       <div className="prompter-progress">
         <div className="prompter-progress-fill" style={{ width: `${progressPct}%` }} />
       </div>
 
-      <div className="prompter-body" onClick={goNext}>
-        <p className="prompter-text" style={{ fontSize }}>
+      {/* 情報バー (Phase 4) */}
+      {(chapterName || allSentencesCount != null) && (
+        <div className="prompter-info-bar" style={{ color: BG_STYLES[bgMode].color }}>
+          {chapterName && (
+            <span className="prompter-info-item">「{chapterName}」</span>
+          )}
+          {chapterTotal != null && chapterCurrent != null && (
+            <span className="prompter-info-item">章 {chapterCurrent + 1}/{chapterTotal}</span>
+          )}
+          <span className="prompter-info-item">
+            全体 {currentIndex + 1}/{total}
+          </span>
+          <span className="prompter-info-item">
+            残り {Math.max(0, total - currentIndex - 1)}文
+          </span>
+          {timer?.isRunning && timer.elapsed > 0 && currentIndex > 0 && (
+            <span className="prompter-info-item">
+              予想完了: {fmtTime(estimatedFinishSec(currentIndex, total, timer.elapsed))}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* マーク表示 (Phase 5) */}
+      {(isWeak || isRecorded) && (
+        <div className="prompter-marks">
+          {isWeak && <span className="prompter-mark prompter-mark-weak">★ 苦手</span>}
+          {isRecorded && <span className="prompter-mark prompter-mark-recorded">🎤 録音済</span>}
+        </div>
+      )}
+
+      {/* 本文表示 */}
+      <div className="prompter-body" onClick={handleBodyClick}>
+        <p className="prompter-text" style={{ fontSize, lineHeight, maxWidth: `${maxWidthPct}%` }}>
           {currentSentence}
         </p>
       </div>
@@ -231,10 +413,12 @@ export default function PrompterView({
                 <span className="prompter-timer-clock">{fmtTime(timer.elapsed)}</span>
                 <span className="prompter-timer-sep"> / </span>
                 <span className="prompter-timer-limit">{fmtTime(timer.limitSec)}</span>
-                <span className="prompter-timer-remain">
+                <span className="prompter-timer-remain"
+                  style={{ color: timer.isRunning ? remainColor(timer.elapsed, timer.limitSec) : undefined }}>
                   （残り {fmtTime(Math.max(0, timer.limitSec - timer.elapsed))}）
                 </span>
-                <span className="prompter-timer-pace" style={{ color: paceColor(currentIndex, total, timer.elapsed, timer.limitSec) }}>
+                <span className="prompter-timer-pace"
+                  style={{ color: paceColor(currentIndex, total, timer.elapsed, timer.limitSec) }}>
                   {paceLabel(currentIndex, total, timer.elapsed, timer.limitSec)}
                 </span>
               </div>
@@ -266,6 +450,7 @@ export default function PrompterView({
 
       <div className="prompter-key-hints">
         ←→ 移動 / Space 読む / Esc 戻る
+        {tapNavEnabled && ' / タップ: 左=前へ 右=次へ'}
       </div>
     </div>
   );
