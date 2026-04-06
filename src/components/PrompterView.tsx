@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { speak, cancelSpeech, getSpeechGeneration } from '../utils/speech';
+import { loadPrompterSettings, savePrompterSettings } from '../utils/storage';
+import type { PrompterSettings } from '../utils/storage';
 
 /** 本番タイマー情報（App側から渡される、表示のみ） */
 export interface PrompterTimer {
@@ -75,23 +77,35 @@ export default function PrompterView({
   recordedIndices,
   currentGlobalIndex,
 }: Props) {
+  // --- 設定の復元 ---
+  const [saved] = useState<PrompterSettings>(() => loadPrompterSettings());
+
   // --- Phase 1: UI state ---
-  const [fontSize, setFontSize] = useState(48);
-  const [lineHeight, setLineHeight] = useState(1.6);
-  const [maxWidthPct, setMaxWidthPct] = useState(90);
-  const [bgMode, setBgMode] = useState<BgMode>('dark');
-  const [toolbarCollapsed, setToolbarCollapsed] = useState(false);
+  const [fontSize, setFontSize] = useState(saved.fontSize);
+  const [lineHeight, setLineHeight] = useState(saved.lineHeight);
+  const [maxWidthPct, setMaxWidthPct] = useState(saved.maxWidthPct);
+  const [bgMode, setBgMode] = useState<BgMode>((saved.bgMode as BgMode) || 'dark');
+  const [toolbarCollapsed, setToolbarCollapsed] = useState(saved.toolbarCollapsed);
 
   // --- Phase 2: Tap navigation ---
-  const [tapNavEnabled, setTapNavEnabled] = useState(true);
+  const [tapNavEnabled, setTapNavEnabled] = useState(saved.tapNavEnabled);
 
   // --- Phase 3: Auto-advance ---
   const [autoPlay, setAutoPlay] = useState(false);
-  const [autoSec, setAutoSec] = useState(5);
-  const [autoMode, setAutoMode] = useState<AutoMode>('fixed');
-  const [autoCoeff, setAutoCoeff] = useState(120);
-  const [autoMinSec, setAutoMinSec] = useState(3);
-  const [autoMaxSec, setAutoMaxSec] = useState(15);
+  const [autoSec, setAutoSec] = useState(saved.autoSec);
+  const [autoMode, setAutoMode] = useState<AutoMode>((saved.autoMode as AutoMode) || 'fixed');
+  const [autoCoeff, setAutoCoeff] = useState(saved.autoCoeff);
+  const [autoMinSec, setAutoMinSec] = useState(saved.autoMinSec);
+  const [autoMaxSec, setAutoMaxSec] = useState(saved.autoMaxSec);
+
+  // --- 設定の自動保存 ---
+  useEffect(() => {
+    savePrompterSettings({
+      fontSize, lineHeight, maxWidthPct, bgMode, toolbarCollapsed,
+      tapNavEnabled, autoMode, autoSec, autoCoeff, autoMinSec, autoMaxSec,
+    });
+  }, [fontSize, lineHeight, maxWidthPct, bgMode, toolbarCollapsed,
+      tapNavEnabled, autoMode, autoSec, autoCoeff, autoMinSec, autoMaxSec]);
 
   const [isSpeaking, setIsSpeaking] = useState(false);
 
