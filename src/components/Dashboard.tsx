@@ -20,6 +20,8 @@ interface Props {
   onNavigate?: (index: number) => void;
   /** 指定文の前後を練習（rangeMode='around' 相当） */
   onPracticeAround?: (index: number) => void;
+  /** 指定章を練習（章選択+ダッシュボード閉じ） */
+  onPracticeChapter?: (chapterIndex: number) => void;
 }
 
 export default function Dashboard({
@@ -28,6 +30,7 @@ export default function Dashboard({
   onPracticeChapterWeak,
   onNavigate,
   onPracticeAround,
+  onPracticeChapter,
 }: Props) {
   const [graphDays, setGraphDays] = useState(7);
   const [expandedResultIdx, setExpandedResultIdx] = useState<number | null>(null);
@@ -456,7 +459,7 @@ export default function Dashboard({
                   <span style={{ color: 'var(--danger)', fontWeight: 600, fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                     {item.count}回停止
                   </span>
-                  <span style={{ display: 'inline-flex', gap: 4 }}>
+                  <span style={{ display: 'inline-flex', gap: 4, flexWrap: 'wrap' }}>
                     {onNavigate && (
                       <button className="btn btn-secondary btn-small" onClick={() => onNavigate(item.index)}>
                         この文へ
@@ -467,6 +470,15 @@ export default function Dashboard({
                         前後を練習
                       </button>
                     )}
+                    {onPracticeChapter && (() => {
+                      const ci = chapters.findIndex((ch) => item.index >= ch.startIndex && item.index <= ch.endIndex);
+                      if (ci < 0) return null;
+                      return (
+                        <button className="btn btn-secondary btn-small" onClick={() => onPracticeChapter(ci)}>
+                          {chapters[ci].title}を練習
+                        </button>
+                      );
+                    })()}
                   </span>
                 </div>
               ))}

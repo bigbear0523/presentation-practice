@@ -582,6 +582,14 @@ function AppInner() {
             setCurrentIndex(0);
             setShowDashboard(false);
           }}
+          onPracticeChapter={(ci) => {
+            cancelSpeech();
+            clearFilters();
+            setSelectedChapter(ci);
+            setRangeMode('all');
+            setCurrentIndex(0);
+            setShowDashboard(false);
+          }}
         />
       )}
 
