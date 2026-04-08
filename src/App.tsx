@@ -16,7 +16,7 @@ import RecordingList from './components/RecordingList';
 import { parseScript, parseChapters, SAMPLE_SCRIPT } from './utils/scriptParser';
 import { getJapaneseVoice, cancelSpeech } from './utils/speech';
 import { incrementDaily, updateDailyWeakSnapshot } from './utils/dailyLog';
-import { downloadBackup, restoreBackup, getBackupSummary, mergeBackup } from './utils/backup';
+import { downloadBackup, downloadBackupForGitHub, restoreBackup, getBackupSummary, mergeBackup } from './utils/backup';
 import { listRecordingKeys } from './utils/recordingDb';
 import {
   saveScript, loadScript,
@@ -799,6 +799,39 @@ function AppInner() {
           }} />
           {backupStatus && <span className="text-muted" style={{ fontSize: '0.8rem' }}>{backupStatus}</span>}
         </div>
+
+        <details style={{ marginTop: 8, fontSize: '0.8rem' }}>
+          <summary style={{ cursor: 'pointer', opacity: 0.8 }}>
+            🐙 GitHub へ保存する（長期保存向け）
+          </summary>
+          <div style={{
+            marginTop: 6, padding: '8px 12px', background: 'var(--bg-secondary, #f5f5f5)',
+            borderRadius: 8, lineHeight: 1.6,
+          }}>
+            <p style={{ margin: '0 0 6px' }}>
+              社内PCなどブラウザデータが消える環境では、バックアップファイルを
+              <strong> GitHub リポジトリ</strong>や <strong>GitHub Gist</strong> に保存すると安全です。
+            </p>
+            <ol style={{ margin: '0 0 8px', paddingLeft: 20 }}>
+              <li>下のボタンでバックアップJSONをダウンロード</li>
+              <li>GitHub のリポジトリまたは Gist にアップロード</li>
+              <li>復元時は GitHub からダウンロードして「📂 復元」から読み込み</li>
+            </ol>
+            <button className="btn btn-secondary btn-small" onClick={async () => {
+              setBackupStatus('GitHub用バックアップを作成中...');
+              try {
+                await downloadBackupForGitHub();
+                markBackupDone();
+                setBackupStatus('✅ GitHub用バックアップ完了 — ダウンロードしたファイルをGitHubへアップロードしてください');
+              } catch { setBackupStatus('エクスポートに失敗しました'); }
+            }}>
+              🐙 GitHub保存用バックアップ
+            </button>
+            <p style={{ margin: '6px 0 0', fontSize: '0.75rem', opacity: 0.6 }}>
+              ※ GitHubトークンなどの認証情報はこのアプリには保存されません。手動アップロードで安全に運用できます。
+            </p>
+          </div>
+        </details>
       </footer>
     </div>
   );

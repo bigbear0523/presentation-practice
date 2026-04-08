@@ -16,6 +16,12 @@ export interface BackupData {
   localStorage: Record<string, string>;
   dailyLog: string | null;
   recordings: RecordingExportEntry[];
+  /** エクスポート用メタデータ（省略可、復元時は無視） */
+  metadata?: {
+    exportedAt: string;
+    exportTarget?: string;
+    appVersion?: string;
+  };
 }
 
 /** localStorage からアプリ関連のキーだけ抽出する */
@@ -66,6 +72,26 @@ export async function downloadBackup(): Promise<void> {
   const now = new Date();
   const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
   a.download = `pres-practice-backup-${dateStr}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/** GitHub保存用バックアップ JSON をダウンロードする */
+export async function downloadBackupForGitHub(): Promise<void> {
+  const data = await createBackup();
+  data.metadata = {
+    exportedAt: new Date().toISOString(),
+    exportTarget: 'github',
+    appVersion: '1.2.0',
+  };
+  const json = JSON.stringify(data, null, 2); // 読みやすいフォーマット
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+  a.download = `pres-practice-github-${dateStr}.json`;
   a.click();
   URL.revokeObjectURL(url);
 }
