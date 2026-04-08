@@ -40,6 +40,8 @@ import {
   appendTimerResult, loadTimerResults, type TimerResult,
   loadActiveScriptId, loadScripts,
   saveWeakContextRange, loadWeakContextRange,
+  saveLastBackupAt, loadLastBackupAt,
+  saveChangesSinceBackup, loadChangesSinceBackup, incrementChangesSinceBackup,
 } from './utils/storage';
 
 // --- ErrorBoundary ---
@@ -123,7 +125,26 @@ function AppInner() {
   const [activeScriptId, setActiveScriptId] = useState(() => loadActiveScriptId() || 'default');
   const [prompterRecordedIndices, setPrompterRecordedIndices] = useState<number[]>([]);
   const [backupStatus, setBackupStatus] = useState<string | null>(null);
+  const [lastBackupAt, setLastBackupAt] = useState(() => loadLastBackupAt());
+  const [changesSinceBackup, setChangesSinceBackup] = useState(() => loadChangesSinceBackup());
+  const [showBackupReminder, setShowBackupReminder] = useState(false);
   const backupFileRef = useRef<HTMLInputElement>(null);
+
+  // 変更検出: 主要操作で変更カウントを増やす
+  const trackChange = useCallback(() => {
+    incrementChangesSinceBackup();
+    setChangesSinceBackup(loadChangesSinceBackup());
+  }, []);
+
+  // バックアップ完了時の処理
+  const markBackupDone = useCallback(() => {
+    const now = Date.now();
+    saveLastBackupAt(now);
+    setLastBackupAt(now);
+    saveChangesSinceBackup(0);
+    setChangesSinceBackup(0);
+    setShowBackupReminder(false);
+  }, []);
 
   const practiceRef = useRef<PracticePanelHandle>(null);
   const recordingRef = useRef<RecordingPanelHandle>(null);
@@ -292,6 +313,8 @@ function AppInner() {
     const saved = appendTimerResult(result);
     setTimerResults(saved);
     incrementDaily('timerCount');
+    trackChange();
+    setShowBackupReminder(true);
     // 非同期で録音情報を追加（失敗しても結果は保存済み）
     listRecordingKeys(activeScriptId).then((indices) => {
       if (indices.length === 0) return;
@@ -329,6 +352,7 @@ function AppInner() {
     onChangeLimitMinutes: setPTimerLimitMin,
     onStart: () => { setPTimerElapsed(0); setPTimerFinished(false); setPTimerRunning(true); },
     onStop: () => { setPTimerRunning(false); setPTimerFinished(true); },
+    onReset: () => { setPTimerRunning(false); setPTimerFinished(false); setPTimerElapsed(0); },
   };
 
   // キーボード
@@ -378,6 +402,7 @@ function AppInner() {
     // ダッシュボード: 練習カウント
     setDashboardStats((prev) => ({ ...prev, totalPracticeCount: prev.totalPracticeCount + 1 }));
     incrementDaily('practiceCount');
+    trackChange();
   };
 
   const handleChangeSplitMode = (mode: SplitMode) => {
@@ -444,7 +469,8 @@ function AppInner() {
     setAutoWeakStats((prev) => bumpStat(prev, index, 'reRecords'));
     setDashboardStats((prev) => ({ ...prev, totalRecordCount: prev.totalRecordCount + 1 }));
     incrementDaily('recordCount');
-  }, []);
+    trackChange();
+  }, [trackChange]);
 
   // 台本管理から読み込み
   const handleLoadFromManager = (text: string) => {
@@ -697,18 +723,60 @@ function AppInner() {
         </>
       )}
 
-      <footer className="app-footer">
-        <p>プレゼン暗記練習アプリ — データはすべてブラウザ内に保存されます（外部送信なし）</p>
-        <div className="backup-controls">
-          <button className="btn btn-secondary btn-small" onClick={async () => {
+      {/* バックアップ推奨バナー */}
+      {showBackupReminder && (
+        <div style={{
+          background: 'var(--warning, #ffd60a)', color: '#000', padding: '8px 16px',
+          borderRadius: 8, margin: '8px 0', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+          fontSize: '0.85rem',
+        }}>
+          <strong>💾 バックアップをおすすめします</strong>
+          <span>本番結果や録音など重要なデータが追加されました。</span>
+          <button className="btn btn-primary btn-small" onClick={async () => {
             setBackupStatus('エクスポート中...');
-            try { await downloadBackup(); setBackupStatus('バックアップをダウンロードしました'); }
+            try { await downloadBackup(); markBackupDone(); setBackupStatus('✅ バックアップ完了'); }
             catch { setBackupStatus('エクスポートに失敗しました'); }
           }}>
-            一括バックアップ
+            今すぐバックアップ
+          </button>
+          <button className="btn btn-secondary btn-small" onClick={() => setShowBackupReminder(false)}>
+            後で
+          </button>
+        </div>
+      )}
+
+      <footer className="app-footer">
+        <div style={{
+          background: 'rgba(255,69,58,0.1)', border: '1px solid rgba(255,69,58,0.3)',
+          borderRadius: 8, padding: '8px 12px', marginBottom: 8, fontSize: '0.8rem', color: 'var(--danger, #ff453a)',
+        }}>
+          ⚠ データはこのブラウザ内にのみ保存されています。ブラウザのデータが消去されると練習データも失われます。
+          定期的にバックアップファイルを保存してください。
+        </div>
+
+        <div style={{ fontSize: '0.75rem', opacity: 0.7, marginBottom: 6 }}>
+          {lastBackupAt > 0 ? (
+            <>最終バックアップ: {new Date(lastBackupAt).toLocaleDateString('ja-JP')} {new Date(lastBackupAt).toLocaleTimeString('ja-JP')}</>
+          ) : (
+            <span style={{ color: 'var(--danger)' }}>まだバックアップされていません</span>
+          )}
+          {changesSinceBackup > 0 && (
+            <span style={{ marginLeft: 8, color: 'var(--warning, #ffa500)' }}>
+              （{changesSinceBackup}件の変更あり）
+            </span>
+          )}
+        </div>
+
+        <div className="backup-controls">
+          <button className="btn btn-primary btn-small" style={{ fontWeight: 600 }} onClick={async () => {
+            setBackupStatus('エクスポート中...');
+            try { await downloadBackup(); markBackupDone(); setBackupStatus('✅ バックアップ完了（台本・履歴・録音を含む）'); }
+            catch { setBackupStatus('エクスポートに失敗しました'); }
+          }}>
+            💾 全データをバックアップ
           </button>
           <button className="btn btn-secondary btn-small" onClick={() => backupFileRef.current?.click()}>
-            復元
+            📂 復元
           </button>
           <input ref={backupFileRef} type="file" accept=".json" style={{ display: 'none' }} onChange={async (e) => {
             const file = e.target.files?.[0];

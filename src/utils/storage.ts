@@ -31,6 +31,9 @@ const KEYS = {
   prompterSettings: `${PREFIX}-prompter-settings`,
   // 苦手前後幅
   weakContextRange: `${PREFIX}-weak-context-range`,
+  // バックアップ管理
+  lastBackupAt: `${PREFIX}-last-backup-at`,
+  changesSinceBackup: `${PREFIX}-changes-since-backup`,
 } as const;
 
 // --- 型定義 ---
@@ -263,6 +266,21 @@ export function appendTimerResult(result: TimerResult): TimerResult[] {
   const next = [result, ...prev].slice(0, 50);
   saveTimerResults(next);
   return next;
+}
+
+// --- バックアップ管理 ---
+export function saveLastBackupAt(ts: number): void { safeSet(KEYS.lastBackupAt, String(ts)); }
+export function loadLastBackupAt(): number {
+  const v = Number(safeGet(KEYS.lastBackupAt));
+  return v > 0 ? v : 0;
+}
+export function saveChangesSinceBackup(n: number): void { safeSet(KEYS.changesSinceBackup, String(n)); }
+export function loadChangesSinceBackup(): number {
+  const v = Number(safeGet(KEYS.changesSinceBackup));
+  return v >= 0 ? v : 0;
+}
+export function incrementChangesSinceBackup(): void {
+  saveChangesSinceBackup(loadChangesSinceBackup() + 1);
 }
 
 // --- 苦手前後幅 ---

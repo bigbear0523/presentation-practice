@@ -62,6 +62,14 @@ export default function TimerMode({ totalSentences, currentIndex, onClose, onFin
     setFinished(true);
   };
 
+  /** 結果を確定せず時間選択に戻す */
+  const handleReset = () => {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    setIsRunning(false);
+    setFinished(false);
+    setElapsed(0);
+  };
+
   // finished が true になったときに onFinish を呼ぶ
   const finishedRef = useRef(false);
   useEffect(() => {
@@ -145,7 +153,10 @@ export default function TimerMode({ totalSentences, currentIndex, onClose, onFin
           </div>
 
           {isRunning && (
-            <button className="btn btn-danger btn-small" onClick={handleStop}>終了</button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-danger btn-small" onClick={handleStop}>終了</button>
+              <button className="btn btn-secondary btn-small" onClick={handleReset}>リセット</button>
+            </div>
           )}
 
           {finished && (
@@ -153,7 +164,10 @@ export default function TimerMode({ totalSentences, currentIndex, onClose, onFin
               <p>練習文数: {coveredSentences} 文</p>
               <p>経過時間: {formatTime(elapsed)}</p>
               <p>ペース: 1文あたり {coveredSentences > 0 ? (elapsed / coveredSentences).toFixed(1) : '-'} 秒</p>
-              <button className="btn btn-primary btn-small" onClick={handleStart}>もう一度</button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn btn-primary btn-small" onClick={handleStart}>もう一度</button>
+                <button className="btn btn-secondary btn-small" onClick={handleReset}>時間を選び直す</button>
+              </div>
             </div>
           )}
         </div>

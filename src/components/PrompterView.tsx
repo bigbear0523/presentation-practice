@@ -10,6 +10,7 @@ export interface PrompterTimer {
   limitSec: number;
   onStart: () => void;
   onStop: () => void;
+  onReset: () => void;
   finished: boolean;
   limitMinutes: number;
   onChangeLimitMinutes: (m: number) => void;
@@ -485,12 +486,18 @@ export default function PrompterView({
                 </span>
               </div>
               {timer.isRunning && (
-                <button className="btn btn-danger btn-small" onClick={timer.onStop}>本番終了</button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn btn-danger btn-small" onClick={timer.onStop}>本番終了</button>
+                  <button className="btn btn-secondary btn-small" onClick={timer.onReset}>リセット</button>
+                </div>
               )}
               {timer.finished && (
                 <div className="prompter-timer-result">
                   <span>完了 — {fmtTime(timer.elapsed)} / {currentIndex + 1}文</span>
-                  <button className="btn btn-primary btn-small" onClick={timer.onStart}>もう一度</button>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="btn btn-primary btn-small" onClick={timer.onStart}>もう一度</button>
+                    <button className="btn btn-secondary btn-small" onClick={timer.onReset}>時間を選び直す</button>
+                  </div>
                 </div>
               )}
             </>
