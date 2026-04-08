@@ -128,6 +128,100 @@ export async function getBackupSummary(file: File): Promise<string> {
   }
 }
 
+/** バックアップファイルと現在データの差分サマリーを取得する */
+export async function getBackupDiffSummary(file: File): Promise<string> {
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if (typeof data !== 'object' || data === null) return '不正なファイル形式です';
+
+    const lines: string[] = [];
+
+    // --- ファイル情報 ---
+    if (data.createdAt) {
+      const d = new Date(data.createdAt);
+      lines.push(`作成日時: ${d.toLocaleDateString('ja-JP')} ${d.toLocaleTimeString('ja-JP')}`);
+    }
+
+    // --- 台本 ---
+    const scriptsKey = `${APP_PREFIX}-scripts`;
+    const incomingScriptsRaw = data.localStorage?.[scriptsKey];
+    if (incomingScriptsRaw) {
+      try {
+        const incoming = JSON.parse(incomingScriptsRaw);
+        const existingRaw = localStorage.getItem(scriptsKey);
+        const existing = existingRaw ? JSON.parse(existingRaw) : [];
+        if (Array.isArray(incoming) && Array.isArray(existing)) {
+          const existingIds = new Set(existing.map((s: { id?: string }) => s.id));
+          const newScripts = incoming.filter((s: { id?: string }) => s.id && !existingIds.has(s.id));
+          const updateCandidates = incoming.filter((s: { id?: string; updatedAt?: number }) => {
+            if (!s.id || !existingIds.has(s.id)) return false;
+            const cur = existing.find((e: { id?: string }) => e.id === s.id);
+            return cur && s.updatedAt && s.updatedAt > (cur.updatedAt ?? 0);
+          });
+          lines.push(`台本: ${incoming.length}件（新規${newScripts.length}件, 更新候補${updateCandidates.length}件）`);
+        } else {
+          lines.push(`台本: ${Array.isArray(incoming) ? incoming.length : '?'}件`);
+        }
+      } catch { lines.push('台本: 解析エラー'); }
+    } else {
+      lines.push('台本: なし');
+    }
+
+    // --- 本番履歴 ---
+    const timerKey = `${APP_PREFIX}-timer-results`;
+    const incomingTimerRaw = data.localStorage?.[timerKey];
+    if (incomingTimerRaw) {
+      try {
+        const incoming = JSON.parse(incomingTimerRaw);
+        const existingRaw = localStorage.getItem(timerKey);
+        const existing = existingRaw ? JSON.parse(existingRaw) : [];
+        if (Array.isArray(incoming) && Array.isArray(existing)) {
+          const existingDates = new Set(existing.map((r: { date?: number }) => r.date));
+          const newResults = incoming.filter((r: { date?: number }) => r.date && !existingDates.has(r.date));
+          lines.push(`本番履歴: ${incoming.length}件（新規${newResults.length}件）`);
+        } else {
+          lines.push(`本番履歴: ${Array.isArray(incoming) ? incoming.length : '?'}件`);
+        }
+      } catch { lines.push('本番履歴: 解析エラー'); }
+    } else {
+      lines.push('本番履歴: なし');
+    }
+
+    // --- 日別ログ ---
+    if (typeof data.dailyLog === 'string') {
+      try {
+        const incoming = JSON.parse(data.dailyLog);
+        const existingRaw = localStorage.getItem(DAILY_KEY);
+        const existing = existingRaw ? JSON.parse(existingRaw) : [];
+        if (Array.isArray(incoming) && Array.isArray(existing)) {
+          const existingDates = new Set(existing.map((e: { date?: string }) => e.date));
+          const newDays = incoming.filter((e: { date?: string }) => e.date && !existingDates.has(e.date));
+          lines.push(`日別ログ: ${incoming.length}日分（新規${newDays.length}日分）`);
+        }
+      } catch { lines.push('日別ログ: 解析エラー'); }
+    } else {
+      lines.push('日別ログ: なし');
+    }
+
+    // --- 録音 ---
+    if (Array.isArray(data.recordings)) {
+      lines.push(`録音データ: ${data.recordings.length}件`);
+    } else {
+      lines.push('録音データ: なし');
+    }
+
+    // --- 置換 vs マージの説明 ---
+    lines.push('');
+    lines.push('【置換復元】全データを上書き');
+    lines.push('【マージ復元】新規データのみ追加（既存は保持）');
+
+    return lines.join('\n');
+  } catch {
+    return 'ファイルの読み取りに失敗しました';
+  }
+}
+
 /**
  * バックアップ JSON から復元する。
  * 復元できるデータだけ復元し、不正部分はスキップする。

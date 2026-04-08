@@ -16,7 +16,7 @@ import RecordingList from './components/RecordingList';
 import { parseScript, parseChapters, SAMPLE_SCRIPT } from './utils/scriptParser';
 import { getJapaneseVoice, cancelSpeech } from './utils/speech';
 import { incrementDaily, updateDailyWeakSnapshot } from './utils/dailyLog';
-import { downloadBackup, downloadBackupForGitHub, restoreBackup, getBackupSummary, mergeBackup } from './utils/backup';
+import { downloadBackup, downloadBackupForGitHub, restoreBackup, getBackupSummary, getBackupDiffSummary, mergeBackup } from './utils/backup';
 import { listRecordingKeys } from './utils/recordingDb';
 import {
   saveScript, loadScript,
@@ -793,11 +793,11 @@ function AppInner() {
           <input ref={backupFileRef} type="file" accept=".json" style={{ display: 'none' }} onChange={async (e) => {
             const file = e.target.files?.[0];
             if (!file) return;
-            setBackupStatus('ファイル確認中...');
+            setBackupStatus('差分を確認中...');
             try {
-              const summary = await getBackupSummary(file);
+              const diff = await getBackupDiffSummary(file);
               const mode = prompt(
-                `バックアップ内容:\n${summary}\n\n復元モードを選んでください:\n1 = 置換復元（既存データを上書き）\n2 = マージ復元（既存データに追加）\n\n番号を入力:`,
+                `復元前の差分プレビュー:\n${diff}\n\n復元モードを選んでください:\n1 = 置換復元（既存データを上書き）\n2 = マージ復元（新規データのみ追加）\n\n番号を入力:`,
                 '2',
               );
               if (!mode || (mode !== '1' && mode !== '2')) {
