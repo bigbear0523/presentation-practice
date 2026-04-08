@@ -754,15 +754,27 @@ function AppInner() {
           定期的にバックアップファイルを保存してください。
         </div>
 
-        <div style={{ fontSize: '0.75rem', opacity: 0.7, marginBottom: 6 }}>
-          {lastBackupAt > 0 ? (
-            <>最終バックアップ: {new Date(lastBackupAt).toLocaleDateString('ja-JP')} {new Date(lastBackupAt).toLocaleTimeString('ja-JP')}</>
-          ) : (
-            <span style={{ color: 'var(--danger)' }}>まだバックアップされていません</span>
-          )}
+        <div style={{ fontSize: '0.75rem', marginBottom: 6 }}>
+          {(() => {
+            if (lastBackupAt <= 0) {
+              return <span style={{ color: 'var(--danger)', fontWeight: 600 }}>⚠ まだバックアップされていません</span>;
+            }
+            const days = Math.floor((Date.now() - lastBackupAt) / (1000 * 60 * 60 * 24));
+            const daysLabel = days === 0 ? '今日' : `${days}日前`;
+            const daysColor = days >= 7 ? 'var(--danger, #ff453a)' : days >= 3 ? 'var(--warning, #ffa500)' : 'inherit';
+            const d = new Date(lastBackupAt);
+            return (
+              <>
+                <span style={{ opacity: 0.7 }}>最終バックアップ: {d.toLocaleDateString('ja-JP')} {d.toLocaleTimeString('ja-JP')}</span>
+                <span style={{ marginLeft: 8, fontWeight: 600, color: daysColor }}>
+                  （{daysLabel}）
+                </span>
+              </>
+            );
+          })()}
           {changesSinceBackup > 0 && (
-            <span style={{ marginLeft: 8, color: 'var(--warning, #ffa500)' }}>
-              （{changesSinceBackup}件の変更あり）
+            <span style={{ marginLeft: 8, color: 'var(--warning, #ffa500)', fontWeight: 600 }}>
+              {changesSinceBackup}件の未保存変更
             </span>
           )}
         </div>
